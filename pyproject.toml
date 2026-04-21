@@ -1,0 +1,33 @@
+[project]
+name = "cool-pc-price-monitor"
+version = "0.1.0"
+description = "Daily price monitor for coolpc.com.tw evaluate.php"
+requires-python = ">=3.11"
+dependencies = [
+    "httpx>=0.27",
+    "pydantic>=2.5",
+    "beautifulsoup4>=4.12",
+    "lxml>=5.0",
+    "Jinja2>=3.1",
+    "PyYAML>=6.0",
+    "python-dotenv>=1.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-mock>=3.12",
+    "ruff>=0.3",
+    "syrupy>=4.6",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
