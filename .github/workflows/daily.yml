@@ -45,7 +45,7 @@ jobs:
           fi
 
       - name: Commit DB update
-        if: success() && inputs.dry_run != 'true'
+        if: success() && !inputs.dry_run
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
@@ -58,10 +58,13 @@ jobs:
           fi
 
       - name: Monthly tag backup
-        if: success() && inputs.dry_run != 'true'
+        if: success() && !inputs.dry_run
         run: |
           TAG="snapshot-$(date +%Y-%m)"
-          if ! git rev-parse "$TAG" >/dev/null 2>&1; then
+          git fetch --tags --quiet
+          if git rev-parse "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists, skipping"
+          else
             git tag "$TAG"
-            git push --tags
+            git push origin "$TAG"
           fi
