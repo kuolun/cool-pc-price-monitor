@@ -1,0 +1,48 @@
+[probe] fetch 1/3 ...
+[probe] fetch 2/3 ...
+[probe] fetch 3/3 ...
+[probe] saved fixture to tests/fixtures/evaluate_sample.html
+
+=== run1 ===
+  encoding     : big5hkscs
+  <select Y*>  : 30
+  <option>     : 7368
+  <optgroup>   : 567
+  sha16(values): 9c6932bae2c7ca17
+
+=== run2 ===
+  encoding     : big5hkscs
+  <select Y*>  : 30
+  <option>     : 7368
+  <optgroup>   : 567
+  sha16(values): 9c6932bae2c7ca17
+
+=== run3 ===
+  encoding     : big5hkscs
+  <select Y*>  : 30
+  <option>     : 7368
+  <optgroup>   : 567
+  sha16(values): 9c6932bae2c7ca17
+
+=== option_value stability ===
+  STABLE — upgrade to C mode (fill option_value_hint in YAML)
+
+=== per-item hits (using run1) ===
+  [cpu] 1 candidates
+    value='30'  text='AMD R7 7700 MPK(代理含風扇)【8核/16緒】3.8G(↑5.3G)65W /具內顯 /代理商三年保, $7190 ◆ ★'
+  [mb] 1 candidates
+    value='289'  text='技嘉 B650EM FORCE WIFI6E(M-ATX/LAN 2.5G+無線/註冊五年)8+2+2相電源, $3990 ◆ ★ ↓任搭90↓'
+  [ram] 1 candidates
+    value='37'  text='UMAX 64GB(雙通32GB*2) DDR5 6000/CL30 含散熱片, $17999↗$25400 ◆ ★'
+  [ssd] 1 candidates
+    value='175'  text='金士頓 KC3000 2TB/Gen4 PCIe 4.0/讀7000/寫7000/TLC【五年保】, $9500↘$9200 ◆ ★'
+  [cooler] 1 candidates
+    value='62'  text='九州風神 AG500 /5導管(6mm)/高15.5cm/TDP:240W【WXZ】, $690 ◆ ★'
+  [case] 1 candidates
+    value='140'  text='視博通 SW300 白 顯卡長34.5/CPU高16.3/前置Type-C/彈壓式防塵網/玻璃透側/E-ATX, $1990 ◆ ★'
+  [psu] 1 candidates
+    value='140'  text='Montech CENTURY II 850W 雙8/金牌/全模/ATX3.1(PCIe 5.1)/全日系/智慧停轉/10年, $2990 ◆ ★'
+  [os] 3 candidates
+    value='11'  text='Windows 11 中文家用彩盒版 64位元 (USB), $4390 ◆ ★'
+    value='12'  text='Windows 11 中文家用彩盒版 64位元 (USB)【組裝價】, $3860 ◆ ★'
+    value='16'  text='Windows 11 英文家用彩盒版 64位元【客訂】, $4590 ◆ ★'
