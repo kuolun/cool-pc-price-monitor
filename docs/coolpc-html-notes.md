@@ -34,23 +34,21 @@
 | cooler | 九州風神 / AG500 | 1 | 62 | 九州風神 AG500 /5導管(6mm)/高15.5cm/TDP:240W【WXZ】 |
 | case | 視博通 / SW300 / 白 | 1 | 140 | 視博通 SW300 白 顯卡長34.5/CPU高16.3/前置Type-C/彈壓式防塵網/玻璃透側/E-ATX |
 | psu | Montech / CENTURY II / 850W | 1 | 140 | Montech CENTURY II 850W 雙8/金牌/全模/ATX3.1(PCIe 5.1)/全日系/智慧停轉/10年 |
-| os  | Windows 11 / 家用彩盒版 / 64位元 | 3 | 11（目標）| Windows 11 中文家用彩盒版 64位元 (USB)（須加 exclude 縮減至 1） |
+| os  | Windows 11 / 家用彩盒版 / 64位元 / 組裝價 | 1 | 12（目標）| Windows 11 中文家用彩盒版 64位元 (USB)【組裝價】（$3860，即使用者 baseline） |
 
-備註 os：另外 2 筆命中為
-- value=12：`Windows 11 中文家用彩盒版 64位元 (USB)【組裝價】`（較便宜的搭機價，非目標）
-- value=16：`Windows 11 英文家用彩盒版 64位元【客訂】`（英文版，非目標）
+備註 os：使用者 2026-02-24 購買的是**「組裝價」版（value=12, $3860）**，即 spec §2 baseline 的 $3860。為了唯一命中 value=12，`match_all` 加入「組裝價」即可把原本 3 筆命中收斂為 1 筆。另外 2 筆不會被 match_all 命中：
+- value=11：`Windows 11 中文家用彩盒版 64位元 (USB)`（標準零售中文版，$4390，無「組裝價」字樣）
+- value=16：`Windows 11 英文家用彩盒版 64位元【客訂】`（英文版，$4590）
 
 ## 需要在 YAML 加 exclude 的品項
 
-**os** → `exclude: ["組裝價", "英文"]`
-- 原因：`match_all: ["Windows 11", "家用彩盒版", "64位元"]` 命中 3 筆，需排除「組裝價」版（value=12）及英文版（value=16），目標為標準零售中文彩盒版（value=11，$4390）。
-
-其餘 7 個品項各自只有 1 筆命中，無需 exclude。
+無——7 個品項各自只有 1 筆命中。os 藉由把「組裝價」加到 `match_all` 即可唯一命中，不需 exclude（若怕意外，可再加 `exclude: ["英文"]` 當保險）。
 
 ## 後續 task 的 input
 
-- Task 4 (config): `config/products.yaml` 的 8 筆 `match_all` / `exclude` / `option_value_hint` 請以此表填寫。
-  - os 需加 `exclude: ["組裝價", "英文"]`；其餘品項直接帶入上表關鍵字與 option_value_hint。
+- Task 4 (config): `config/products.yaml` 的 8 筆 `match_all` / `option_value_hint` 請以此表填寫。
+  - **os 需把 `"組裝價"` 加進 `match_all`** 以鎖定 value=12 ($3860)；不加會收到 $4390 的中文標準版（和 baseline 不符）。
+  - 其他品項直接帶入上表關鍵字與 option_value_hint。
   - 注意 `select` 名稱為 `n*`（不是 `Y*`），fetcher 選取器應對應調整。
 - Task 6 (fetcher): 
   - 編碼處理 = `big5hkscs`（不是 `utf-8` 或 `big5`）

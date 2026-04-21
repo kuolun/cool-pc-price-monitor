@@ -703,12 +703,14 @@ products:
     exclude: []
 
   - key: os
-    label: "Windows 11 家用彩盒版"
+    label: "Windows 11 家用彩盒版（組裝價）"
     quantity: 1
     baseline_price: 3860
-    match_all: ["Windows 11", "家用彩盒版", "64位元"]
-    exclude: ["專業版", "教育版"]
+    match_all: ["Windows 11", "家用彩盒版", "64位元", "組裝價"]
+    exclude: []
 ```
+
+**重要**：OS 的 baseline $3860 對應「組裝價」版 (value=12)，把「組裝價」加入 `match_all` 即可唯一命中；不加會變成中文標準版 ($4390)，跟 baseline 不符。詳見 `docs/coolpc-html-notes.md`。
 
 - [ ] **Step 2: 建立 `tests/fixtures/products_test.yaml`**
 
@@ -1107,18 +1109,20 @@ class CoolpcFetcher(Fetcher):
 
     @classmethod
     def parse(cls, html_bytes: bytes) -> list[RawProduct]:
-        for encoding in ("utf-8", "big5"):
+        # Probe 發現 coolpc 雖宣告 charset=Big5，但實際需用 big5hkscs codec 才能正確解碼
+        for encoding in ("big5hkscs", "utf-8"):
             try:
                 html = html_bytes.decode(encoding)
                 break
             except UnicodeDecodeError:
                 continue
         else:
-            raise FetcherError("Cannot decode HTML as utf-8 or big5")
+            raise FetcherError("Cannot decode HTML as big5hkscs or utf-8")
 
         soup = BeautifulSoup(html, "lxml")
         products: list[RawProduct] = []
-        for select in soup.select("select[name^='Y']"):
+        # Probe 發現：actual select names are n1..n30, not Y*
+        for select in soup.select("select[name^='n']"):
             optgroup_label: str | None = None
             for el in select.descendants:
                 if el.name == "optgroup":
