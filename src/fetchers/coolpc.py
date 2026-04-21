@@ -92,5 +92,9 @@ class CoolpcFetcher(Fetcher):
 
     @staticmethod
     def _parse_price(text: str) -> int | None:
-        m = _PRICE_RE.search(text)
-        return int(m.group(1).replace(",", "")) if m else None
+        # coolpc 常見格式：「$17999↗$25400」表示已從 $17999 漲到目前結帳價 $25400
+        # （↗ 漲價、↘ 降價）。目前結帳價永遠是最後一個 $amount，所以取最後一筆。
+        matches = _PRICE_RE.findall(text)
+        if not matches:
+            return None
+        return int(matches[-1].replace(",", ""))
