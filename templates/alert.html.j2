@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head><meta charset="utf-8"></head>
+<body style="font-family: -apple-system, 'PingFang TC', sans-serif; max-width: 600px; margin: 0 auto;">
+  <div style="background: #fde4e4; border-left: 6px solid #c92a2a; padding: 20px;">
+    <h2 style="margin: 0; color: #c92a2a;">⚠️ 原價屋價格監控故障</h2>
+    <div style="margin-top: 12px;">
+      <strong>時間：</strong>{{ timestamp }}<br>
+      <strong>錯誤類型：</strong>{{ error_type }}<br>
+      <strong>訊息：</strong><code>{{ error_message }}</code><br>
+      {% if run_id %}<strong>run_id：</strong>{{ run_id }}<br>{% endif %}
+    </div>
+    <div style="margin-top: 16px; font-size: 13px;">
+      建議動作：檢查 GitHub Actions logs，若是 HTML 結構變了，手動跑 <code>scripts/probe.py</code> 查看新結構並更新 <code>config/products.yaml</code>。
+    </div>
+  </div>
+</body>
+</html>

@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head><meta charset="utf-8"></head>
+<body style="font-family: -apple-system, 'PingFang TC', sans-serif; max-width: 680px; margin: 0 auto;">
+
+  <div style="background: {{ banner_bg }}; padding: 20px; border-radius: 8px;">
+    <h2 style="margin: 0;">原價屋價格日報</h2>
+    <div style="font-size: 13px; opacity: 0.8;">{{ run_date }}（購買日 2026-02-24）</div>
+    <div style="font-size: 32px; font-weight: bold; margin-top: 8px;">
+      今日總價 ${{ total_today | comma }}
+    </div>
+    <div style="font-size: 18px; color: {{ delta_color }};">
+      vs 購買 {{ delta_baseline | signed_comma }}
+      {% if delta_yesterday_abs is not none %}
+        　vs 昨天 {{ delta_yesterday_abs | signed_comma }}
+      {% endif %}
+    </div>
+  </div>
+
+  {% if warnings %}
+  <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 12px; margin: 16px 0;">
+    <strong>⚠️ 需注意：</strong>
+    <ul style="margin: 4px 0;">
+      {% for w in warnings %}<li>{{ w }}</li>{% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  <table cellpadding="8" style="width: 100%; border-collapse: collapse; margin-top: 16px;">
+    <thead>
+      <tr style="background: #f5f5f5; text-align: left; font-size: 13px;">
+        <th>品項</th>
+        <th style="text-align: right;">今日</th>
+        <th style="text-align: right;">Δ 昨</th>
+        <th style="text-align: right;">7d low</th>
+        <th style="text-align: right;">30d low</th>
+        <th style="text-align: right;">Δ 購買</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for item in items %}
+      <tr style="border-bottom: 1px solid #eee;">
+        <td>
+          <div style="font-weight: 600;">{{ item.rule.label }}</div>
+          <div style="font-size: 11px; color: #888;">
+            {{ item.rule.key | upper }}
+            {% if item.rule.quantity > 1 %} × {{ item.rule.quantity }}{% endif %}
+            {% if item.warning %} · <span style="color: #c00;">{{ item.warning }}</span>{% endif %}
+          </div>
+        </td>
+        {% if item.not_found %}
+          <td colspan="5" style="text-align: center; color: #c00;">⚠️ 今日未找到</td>
+        {% else %}
+          <td style="text-align: right;">
+            ${{ item.today_price | comma }}
+            {% if item.is_7d_low %}<span title="近 7 天最低">🔻</span>{% endif %}
+            {% if item.is_30d_low %}<span title="近 30 天最低">⭐</span>{% endif %}
+          </td>
+          <td style="text-align: right; color: {{ item.delta_yesterday_color }};">
+            {{ item.delta_yesterday_abs | signed_comma_or_dash }}
+          </td>
+          <td style="text-align: right;">${{ item.low_7d | comma_or_dash }}</td>
+          <td style="text-align: right;">${{ item.low_30d | comma_or_dash }}</td>
+          <td style="text-align: right; color: {{ item.delta_baseline_color }};">
+            {{ item.delta_baseline_abs | signed_comma }}
+          </td>
+        {% endif %}
+      </tr>
+      {% endfor %}
+    </tbody>
+    <tfoot>
+      <tr style="font-weight: bold; background: #fafafa;">
+        <td>合計</td>
+        <td style="text-align: right;">${{ total_today | comma }}</td>
+        <td style="text-align: right; color: {{ total_delta_yesterday_color }};">
+          {{ total_delta_yesterday_abs | signed_comma_or_dash }}
+        </td>
+        <td colspan="2"></td>
+        <td style="text-align: right; color: {{ total_delta_baseline_color }};">
+          {{ total_delta_baseline_abs | signed_comma }}
+        </td>
+      </tr>
+    </tfoot>
+  </table>
+
+  <div style="margin-top: 24px; font-size: 11px; color: #888;">
+    baseline: 2026-02-24 現金優惠價 $56,919
+    · run: {{ run_id }} · fetched {{ option_count }} options · took {{ elapsed_ms }}ms<br>
+    <a href="https://www.coolpc.com.tw/evaluate.php">原價屋配單</a>
+  </div>
+</body>
+</html>
