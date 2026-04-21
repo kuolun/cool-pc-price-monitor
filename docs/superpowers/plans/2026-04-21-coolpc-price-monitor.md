@@ -1272,6 +1272,22 @@ def test_option_value_hint_falls_back_to_keyword_if_missing():
     assert results[0].raw.option_value == "NEW"
 
 
+def test_option_value_hint_ignored_if_match_all_fails():
+    """probe 發現不同 <select> 的 option_value 會重複（例如 case/psu 都是 140）。
+    若該 option_value 存在但 match_all 不通過，必須降級到 keyword 模式找對的產品。"""
+    rule = _rule("case", ["視博通", "SW300", "白"], hint="140")
+    raw = [
+        # 同樣 value=140 的 psu（錯誤產品）
+        _raw("140", "Montech CENTURY II 850W $2990", 2990),
+        # 真正的 case
+        _raw("999", "視博通 SW300 白 機殼 $1990", 1990),
+    ]
+    results = match([rule], raw)
+    # value=140 的產品沒通過 match_all，應降級 keyword 找到正確的 value=999
+    assert results[0].mode == "keyword"
+    assert results[0].raw.option_value == "999"
+
+
 def test_skips_options_with_null_price():
     """有些 option 沒有價格（例如分類標題），不應被 match 到。"""
     rule = _rule("cpu", ["AMD", "R7 7700"])
@@ -1305,14 +1321,21 @@ def match(rules: list[TrackingRule], raw: list[RawProduct]) -> list[MatchResult]
 
 
 def _match_one(rule: TrackingRule, raw: list[RawProduct]) -> MatchResult:
-    # C mode: option_value_hint first
+    # C mode: option_value_hint + 必須同時通過 match_all 過濾
+    # (probe 發現 option_value 在不同 <select> 間會重複，例如 case 跟 psu 都是 value=140，
+    #  所以必須以 match_all 作雙重驗證才不會誤認)
     if rule.option_value_hint:
         for r in raw:
-            if r.option_value == rule.option_value_hint and r.price is not None:
+            if (
+                r.option_value == rule.option_value_hint
+                and r.price is not None
+                and all(kw in r.option_text for kw in rule.match_all)
+                and not any(kw in r.option_text for kw in rule.exclude)
+            ):
                 return MatchResult(
                     rule=rule, raw=r, mode="option_value", confidence=1.0
                 )
-        # hint 失效 → 降級到 A
+        # hint 失效或 match_all 不通過 → 降級到 A
 
     # A mode: match_all ALL, exclude NONE, price present
     candidates = [
