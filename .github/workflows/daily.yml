@@ -1,0 +1,68 @@
+name: Daily price check
+
+on:
+  schedule:
+    - cron: "0 1 * * *"          # UTC 01:00 = Taipei 09:00
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "Dry run (不發 email)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    concurrency:
+      group: daily-check
+      cancel-in-progress: false
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Install deps
+        run: uv sync --frozen
+
+      - name: Run watcher
+        env:
+          SMTP_USER: ${{ secrets.SMTP_USER }}
+          SMTP_PASS: ${{ secrets.SMTP_PASS }}
+          TO_EMAIL:  ${{ secrets.TO_EMAIL }}
+          TZ: Asia/Taipei
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          if [ "$DRY_RUN" = "true" ]; then
+            uv run python -m src.main --dry-run
+          else
+            uv run python -m src.main
+          fi
+
+      - name: Commit DB update
+        if: success() && inputs.dry_run != 'true'
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/prices.db
+          if git diff --staged --quiet; then
+            echo "No DB changes"
+          else
+            git commit -m "chore: daily snapshot $(date -Iseconds)"
+            git push
+          fi
+
+      - name: Monthly tag backup
+        if: success() && inputs.dry_run != 'true'
+        run: |
+          TAG="snapshot-$(date +%Y-%m)"
+          if ! git rev-parse "$TAG" >/dev/null 2>&1; then
+            git tag "$TAG"
+            git push --tags
+          fi
