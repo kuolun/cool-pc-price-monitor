@@ -84,7 +84,7 @@ def main() -> None:
     FIXTURE_PATH.write_bytes(snapshots[0][0])
     print(f"[probe] saved fixture to {FIXTURE_PATH}", file=sys.stderr)
 
-    for raw, info in snapshots:
+    for _raw, info in snapshots:
         print(f"\n=== {info['label']} ===")
         print(f"  encoding     : {info['encoding']}")
         print(f"  <select Y*>  : {info['n_selects']}")

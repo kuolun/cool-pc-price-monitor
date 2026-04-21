@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
 from src.config import SMTPConfig, load_products
 
@@ -30,7 +31,7 @@ products:
 """
     path = Path("/tmp/_bad_products.yaml")
     path.write_text(bad)
-    with pytest.raises((ValueError, Exception)):
+    with pytest.raises(ValidationError):
         load_products(path)
 
 
