@@ -1,0 +1,68 @@
+baseline:
+  date: "2026-02-24"
+  notes: "現金優惠價 $56,919（含優惠 $90）"
+
+products:
+  - key: cpu
+    label: "AMD R7 7700 MPK"
+    quantity: 1
+    baseline_price: 6490
+    match_all: ["AMD", "R7 7700 MPK"]
+    exclude: []
+    option_value_hint: "30"
+
+  - key: mb
+    label: "技嘉 B650EM FORCE WIFI6E"
+    quantity: 1
+    baseline_price: 3990
+    match_all: ["B650EM", "FORCE", "WIFI6E"]
+    exclude: []
+    option_value_hint: "289"
+
+  - key: ram
+    label: "UMAX 64GB (32GB*2) DDR5-6000 CL30"
+    quantity: 1
+    baseline_price: 17999
+    match_all: ["UMAX", "64GB", "雙通32GB", "6000", "CL30"]
+    exclude: []
+    option_value_hint: "37"
+
+  - key: ssd
+    label: "金士頓 KC3000 2TB"
+    quantity: 2
+    baseline_price: 9500
+    match_all: ["金士頓", "KC3000", "2TB"]
+    exclude: []
+    option_value_hint: "175"
+
+  - key: cooler
+    label: "九州風神 AG500"
+    quantity: 1
+    baseline_price: 690
+    match_all: ["九州風神", "AG500"]
+    exclude: []
+    option_value_hint: "62"
+
+  - key: case
+    label: "視博通 SW300 白"
+    quantity: 1
+    baseline_price: 1990
+    match_all: ["視博通", "SW300", "白"]
+    exclude: []
+    option_value_hint: "140"
+
+  - key: psu
+    label: "Montech CENTURY II 850W"
+    quantity: 1
+    baseline_price: 2990
+    match_all: ["Montech", "CENTURY II", "850W"]
+    exclude: []
+    option_value_hint: "140"
+
+  - key: os
+    label: "Windows 11 家用彩盒版（組裝價）"
+    quantity: 1
+    baseline_price: 3860
+    match_all: ["Windows 11", "家用彩盒版", "64位元", "組裝價"]
+    exclude: []
+    option_value_hint: "12"

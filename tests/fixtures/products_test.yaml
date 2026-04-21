@@ -1,0 +1,19 @@
+baseline:
+  date: "2026-01-01"
+  notes: "test baseline"
+
+products:
+  - key: cpu
+    label: "Test CPU"
+    quantity: 1
+    baseline_price: 5000
+    match_all: ["Test", "CPU"]
+    exclude: []
+
+  - key: ssd
+    label: "Test SSD"
+    quantity: 2
+    baseline_price: 1000
+    match_all: ["Test", "SSD"]
+    exclude: []
+    option_value_hint: "ABC123"
