@@ -31,14 +31,18 @@ class SMTPConfig:
 
     @classmethod
     def from_env(cls) -> SMTPConfig:
-        required = {"SMTP_USER", "SMTP_PASS", "TO_EMAIL"}
+        # Convention aligned with dotfiles/send-email skill + other personal projects
+        # (fb-posts-saver, ivy-life-course-learning): GMAIL_USER + GMAIL_APP_PASSWORD.
+        # TO_EMAIL optional — defaults to GMAIL_USER (send to self).
+        required = {"GMAIL_USER", "GMAIL_APP_PASSWORD"}
         missing = [k for k in required if not os.getenv(k)]
         if missing:
             raise RuntimeError(f"Missing env vars: {missing}")
+        user = os.environ["GMAIL_USER"]
         return cls(
-            user=os.environ["SMTP_USER"],
-            password=os.environ["SMTP_PASS"],
-            to_email=os.environ["TO_EMAIL"],
+            user=user,
+            password=os.environ["GMAIL_APP_PASSWORD"],
+            to_email=os.environ.get("TO_EMAIL", user),
         )
 
 

@@ -67,7 +67,7 @@ def test_main_real_run_sends_email(mocker, tmp_db, products_yaml):
     mocker.patch("src.fetchers.coolpc.CoolpcFetcher.fetch", return_value=_fake_raw_products())
     send_mock = mocker.patch("src.notifier.send_email")
     mocker.patch.dict("os.environ", {
-        "SMTP_USER": "u@g.com", "SMTP_PASS": "pw", "TO_EMAIL": "t@g.com",
+        "GMAIL_USER": "u@g.com", "GMAIL_APP_PASSWORD": "pw", "TO_EMAIL": "t@g.com",
     })
 
     rc = main(argv=["--config", str(products_yaml),
@@ -85,7 +85,7 @@ def test_main_fetcher_failure_sends_alert_and_exits_nonzero(mocker, tmp_db, prod
                  side_effect=FetcherError("Only 45 options"))
     send_mock = mocker.patch("src.notifier.send_email")
     mocker.patch.dict("os.environ", {
-        "SMTP_USER": "u@g.com", "SMTP_PASS": "pw", "TO_EMAIL": "t@g.com",
+        "GMAIL_USER": "u@g.com", "GMAIL_APP_PASSWORD": "pw", "TO_EMAIL": "t@g.com",
     })
 
     rc = main(argv=["--config", str(products_yaml), "--db", str(tmp_db)])

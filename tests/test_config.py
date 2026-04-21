@@ -35,18 +35,26 @@ products:
         load_products(path)
 
 
-def test_smtp_config_from_env(monkeypatch):
-    monkeypatch.setenv("SMTP_USER", "u@g.com")
-    monkeypatch.setenv("SMTP_PASS", "pass")
+def test_smtp_config_from_env_with_explicit_to_email(monkeypatch):
+    monkeypatch.setenv("GMAIL_USER", "u@g.com")
+    monkeypatch.setenv("GMAIL_APP_PASSWORD", "pass")
     monkeypatch.setenv("TO_EMAIL", "t@g.com")
     smtp = SMTPConfig.from_env()
     assert smtp.user == "u@g.com"
     assert smtp.to_email == "t@g.com"
 
 
-def test_smtp_config_missing_env_raises(monkeypatch):
-    monkeypatch.delenv("SMTP_USER", raising=False)
-    monkeypatch.delenv("SMTP_PASS", raising=False)
+def test_smtp_config_to_email_defaults_to_gmail_user(monkeypatch):
+    monkeypatch.setenv("GMAIL_USER", "u@g.com")
+    monkeypatch.setenv("GMAIL_APP_PASSWORD", "pass")
     monkeypatch.delenv("TO_EMAIL", raising=False)
-    with pytest.raises(RuntimeError, match="SMTP_USER"):
+    smtp = SMTPConfig.from_env()
+    assert smtp.to_email == "u@g.com"
+
+
+def test_smtp_config_missing_env_raises(monkeypatch):
+    monkeypatch.delenv("GMAIL_USER", raising=False)
+    monkeypatch.delenv("GMAIL_APP_PASSWORD", raising=False)
+    monkeypatch.delenv("TO_EMAIL", raising=False)
+    with pytest.raises(RuntimeError, match="GMAIL_USER"):
         SMTPConfig.from_env()
