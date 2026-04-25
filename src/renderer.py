@@ -81,6 +81,17 @@ def render_daily_report(
         d["rule"] = it.rule
         d["delta_yesterday_color"] = _color_for(it.delta_yesterday_abs)
         d["delta_baseline_color"] = _color_for(it.delta_baseline_abs)
+        # Line-total fields so per-row columns add up to the 合計 row when
+        # quantity > 1. Stored deltas/lows are per-unit; renderer multiplies.
+        qty = it.rule.quantity
+        d["delta_yesterday_line"] = (
+            it.delta_yesterday_abs * qty if it.delta_yesterday_abs is not None else None
+        )
+        d["delta_baseline_line"] = (
+            it.delta_baseline_abs * qty if it.delta_baseline_abs is not None else None
+        )
+        d["low_7d_line"] = it.low_7d * qty if it.low_7d is not None else None
+        d["low_30d_line"] = it.low_30d * qty if it.low_30d is not None else None
         items_with_color.append(d)
 
     return tmpl.render(

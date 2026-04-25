@@ -34,7 +34,11 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
 
 def _compose_subject(run_date, total_today, delta_baseline) -> str:
     sign = "+" if delta_baseline > 0 else ""
-    return f"[原價屋] {run_date} 今日 ${total_today:,}（vs 購買 {sign}{delta_baseline:,}）"
+    # No space between "vs" and "購買": Python's email encoder splits long
+    # mixed-script subjects into adjacent encoded-words at this whitespace,
+    # and per RFC 2047 §6.2 the LWSP between them is dropped on display.
+    # Encoding without the space keeps the rendered subject identical.
+    return f"[原價屋] {run_date} 今日 ${total_today:,}（vs購買 {sign}{delta_baseline:,}）"
 
 
 def main(argv: list[str] | None = None) -> int:
