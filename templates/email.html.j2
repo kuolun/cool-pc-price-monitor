@@ -30,6 +30,7 @@
     <thead>
       <tr style="background: #f5f5f5; text-align: left; font-size: 13px;">
         <th>品項</th>
+        <th style="text-align: right;">購買</th>
         <th style="text-align: right;">今日</th>
         <th style="text-align: right;">Δ 昨</th>
         <th style="text-align: right;">7d low</th>
@@ -48,6 +49,7 @@
             {% if item.warning %} · <span style="color: #c00;">{{ item.warning }}</span>{% endif %}
           </div>
         </td>
+        <td style="text-align: right; color: #888;">${{ item.baseline_line | comma }}</td>
         {% if item.not_found %}
           <td colspan="5" style="text-align: center; color: #c00;">⚠️ 今日未找到</td>
         {% else %}
@@ -71,6 +73,7 @@
     <tfoot>
       <tr style="font-weight: bold; background: #fafafa;">
         <td>合計</td>
+        <td style="text-align: right; color: #888;">${{ total_baseline | comma }}</td>
         <td style="text-align: right;">${{ total_today | comma }}</td>
         <td style="text-align: right; color: {{ total_delta_yesterday_color }};">
           {{ total_delta_yesterday_abs | signed_comma_or_dash }}

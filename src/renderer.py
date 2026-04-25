@@ -92,12 +92,14 @@ def render_daily_report(
         )
         d["low_7d_line"] = it.low_7d * qty if it.low_7d is not None else None
         d["low_30d_line"] = it.low_30d * qty if it.low_30d is not None else None
+        d["baseline_line"] = it.rule.baseline_price * qty
         items_with_color.append(d)
 
     return tmpl.render(
         run_date=report.run_date.isoformat(),
         items=items_with_color,
         total_today=report.total_today,
+        total_baseline=report.total_baseline,
         delta_baseline=report.total_delta_baseline_abs,
         delta_yesterday_abs=report.total_delta_yesterday_abs,
         total_delta_baseline_abs=report.total_delta_baseline_abs,
