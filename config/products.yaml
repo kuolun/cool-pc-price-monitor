@@ -9,7 +9,7 @@ products:
     baseline_price: 6490
     match_all: ["AMD", "R7 7700 MPK"]
     exclude: []
-    option_value_hint: "30"
+    option_value_hint: "27"
 
   - key: mb
     label: "技嘉 B650EM FORCE WIFI6E"
@@ -17,7 +17,7 @@ products:
     baseline_price: 3990
     match_all: ["B650EM", "FORCE", "WIFI6E"]
     exclude: []
-    option_value_hint: "289"
+    option_value_hint: "295"
 
   - key: ram
     label: "UMAX 64GB (32GB*2) DDR5-6000 CL30"
@@ -25,15 +25,15 @@ products:
     baseline_price: 17999
     match_all: ["UMAX", "64GB", "雙通32GB", "6000", "CL30"]
     exclude: []
-    option_value_hint: "37"
+    option_value_hint: "32"
 
   - key: ssd
     label: "金士頓 KC3000 2TB"
     quantity: 2
     baseline_price: 9500
-    match_all: ["金士頓", "KC3000", "2TB"]
+    match_all: ["金士頓", "KC3000", "2TB", "搭機價"]
     exclude: []
-    option_value_hint: "175"
+    option_value_hint: "178"
 
   - key: cooler
     label: "九州風神 AG500"
@@ -49,7 +49,7 @@ products:
     baseline_price: 1990
     match_all: ["視博通", "SW300", "白"]
     exclude: []
-    option_value_hint: "140"
+    option_value_hint: "141"
 
   - key: psu
     label: "Montech CENTURY II 850W"
@@ -57,7 +57,7 @@ products:
     baseline_price: 2990
     match_all: ["Montech", "CENTURY II", "850W"]
     exclude: []
-    option_value_hint: "140"
+    option_value_hint: "141"
 
   - key: os
     label: "Windows 11 家用彩盒版（組裝價）"
