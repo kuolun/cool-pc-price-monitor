@@ -31,9 +31,9 @@ products:
     label: "金士頓 KC3000 2TB"
     quantity: 2
     baseline_price: 9500
-    match_all: ["金士頓", "KC3000", "2TB", "搭機價"]
+    match_all: ["金士頓", "KC3000", "2TB"]
     exclude: []
-    option_value_hint: "178"
+    option_value_hint: "170"
 
   - key: cooler
     label: "九州風神 AG500"
