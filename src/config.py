@@ -42,7 +42,7 @@ class SMTPConfig:
         return cls(
             user=user,
             password=os.environ["GMAIL_APP_PASSWORD"],
-            to_email=os.environ.get("TO_EMAIL", user),
+            to_email=os.environ.get("TO_EMAIL") or "kuolun@gmail.com",
         )
 
 
