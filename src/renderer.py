@@ -157,11 +157,22 @@ def _render_chart_png(
         fill="#888", font=f_axis, anchor="ra",
     )
 
-    draw.text((pad_l - 12, pad_t - 8), f"${y_hi:,.0f}", fill="#999", font=f_axis, anchor="ra")
-    draw.text(
-        (pad_l - 12, pad_t + plot_h - 8),
-        f"${y_lo:,.0f}", fill="#999", font=f_axis, anchor="ra",
-    )
+    max_total = max(totals)
+    min_total = min(totals)
+    if max_total != min_total:
+        draw.text(
+            (pad_l - 12, y_at(max_total) - 14),
+            f"high ${max_total:,}", fill="#999", font=f_axis, anchor="ra",
+        )
+        draw.text(
+            (pad_l - 12, y_at(min_total) - 14),
+            f"low ${min_total:,}", fill="#999", font=f_axis, anchor="ra",
+        )
+    else:
+        draw.text(
+            (pad_l - 12, y_at(max_total) - 14),
+            f"${max_total:,}", fill="#999", font=f_axis, anchor="ra",
+        )
 
     last_total = totals[-1]
     line_color = (
@@ -178,7 +189,10 @@ def _render_chart_png(
     lx, ly = points[-1]
     draw.ellipse([(lx - 7, ly - 7), (lx + 7, ly + 7)], fill=line_color)
 
-    draw.text((lx - 12, ly - 28), f"${last_total:,}", fill=line_color, font=f_value, anchor="ra")
+    draw.text(
+        (lx - 12, ly - 28),
+        f"today ${last_total:,}", fill=line_color, font=f_value, anchor="ra",
+    )
 
     def _short(d: str) -> str:
         return d[5:] if len(d) >= 10 else d
@@ -190,15 +204,9 @@ def _render_chart_png(
     )
 
     title = (
-        f"Total trend · {n} days ({_short(history[0][0])} → {_short(history[-1][0])})"
+        f"Total daily price · {n} days ({_short(history[0][0])} → {_short(history[-1][0])})"
     )
     draw.text((pad_l, pad_t - 36), title, fill="#666", font=f_title)
-
-    summary = f"low ${min(totals):,} · high ${max(totals):,}"
-    draw.text(
-        (pad_l + plot_w // 2, pad_t + plot_h + 16),
-        summary, fill="#999", font=f_axis, anchor="ma",
-    )
 
     out = io.BytesIO()
     img.save(out, format="PNG", optimize=True)
@@ -229,11 +237,31 @@ def render_total_history_chart(
     def _short(d: str) -> str:
         return d[5:] if len(d) >= 10 else d
 
+    last_total = history[-1][1]
+    totals = [t for _, t in history]
+    min_total, max_total = min(totals), max(totals)
+    line_color = (
+        _RED if last_total > baseline
+        else _GREEN if last_total < baseline
+        else _GRAY
+    )
+
+    legend = (
+        '<div style="font-size:11px; color:#888; margin-bottom:6px;">'
+        f'<span style="color:{line_color};">━━</span> 每日總價（紅點＝今日 ${last_total:,}）'
+        "　·　"
+        f'<span style="color:#888;">- - -</span> baseline 購買日基準（${baseline:,}）'
+        "　·　"
+        f"區間 ${min_total:,} – ${max_total:,}"
+        "</div>"
+    )
+
     html = (
         '<div style="margin:16px 0;">'
-        f'<div style="font-size:12px; color:#666; margin-bottom:4px;">'
-        f"總價趨勢 · {n} 天（{_short(first_date)} → {_short(last_date)}）"
+        f'<div style="font-size:12px; color:#666; margin-bottom:4px; font-weight:600;">'
+        f"總價趨勢 · 過去 {n} 天（{_short(first_date)} → {_short(last_date)}）"
         "</div>"
+        f"{legend}"
         f'<img src="cid:{CHART_CID}" alt="Total trend chart" '
         'style="width:100%; max-width:640px; height:auto; display:block; '
         'border-radius:6px;">'
