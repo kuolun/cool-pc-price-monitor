@@ -123,11 +123,18 @@ def _render_chart_png(
     f_axis = _load_font(20)
     f_value = _load_font(24)
 
-    pad_l, pad_r, pad_t, pad_b = 130, 40, 60, 70
+    totals = [t for _, t in history]
+
+    # Width the left gutter so the widest y-axis label (e.g. "high $64,510")
+    # fits without clipping. 20px buffer covers the text-to-chart gap plus
+    # font hinting slop on glyphs that hang past their advance width.
+    sample = f"high ${max(max(totals), baseline):,}"
+    label_w = int(f_axis.getlength(sample))
+    pad_l = max(label_w + 28, 130)
+    pad_r, pad_t, pad_b = 40, 60, 70
     plot_w = width - pad_l - pad_r
     plot_h = height - pad_t - pad_b
 
-    totals = [t for _, t in history]
     y_min = min(min(totals), baseline)
     y_max = max(max(totals), baseline)
     if y_max == y_min:
