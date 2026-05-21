@@ -184,8 +184,20 @@ def _render_chart_png(
     points = [(x_at(i), y_at(t)) for i, t in enumerate(totals)]
     if len(points) >= 2:
         draw.line(points, fill=line_color, width=4, joint="curve")
-    for px, py in points:
+
+    # Dots only at "interesting" days: first, last, and every change point.
+    # Skipping the dot on every flat day makes the chart far less noisy when
+    # prices sit at one level for stretches — the line still carries the
+    # full time series so the x-axis stays proportional.
+    interesting = {0, len(totals) - 1}
+    for i in range(1, len(totals)):
+        if totals[i] != totals[i - 1]:
+            interesting.add(i)
+            interesting.add(i - 1)
+    for i in sorted(interesting):
+        px, py = points[i]
         draw.ellipse([(px - 4, py - 4), (px + 4, py + 4)], fill=line_color)
+
     lx, ly = points[-1]
     draw.ellipse([(lx - 7, ly - 7), (lx + 7, ly + 7)], fill=line_color)
 
