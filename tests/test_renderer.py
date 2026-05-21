@@ -62,7 +62,7 @@ def test_render_produces_nonempty_html():
         missing_item_keys=[],
         fetcher_warnings=[],
     )
-    html = render_daily_report(report, run_id=42, option_count=1500, elapsed_ms=3200)
+    html, _ = render_daily_report(report, run_id=42, option_count=1500, elapsed_ms=3200)
     assert "AMD R7 7700 MPK" in html
     assert "6,390" in html
     assert "-100" in html
@@ -81,7 +81,7 @@ def test_render_shows_not_found_row():
         missing_item_keys=["cpu"],
         fetcher_warnings=["cpu 未找到"],
     )
-    html = render_daily_report(report, run_id=1, option_count=1500, elapsed_ms=100)
+    html, _ = render_daily_report(report, run_id=1, option_count=1500, elapsed_ms=100)
     assert "今日未找到" in html
     assert "需注意" in html
 
@@ -98,7 +98,7 @@ def test_render_banner_bg_varies_by_baseline_delta():
         missing_item_keys=[],
         fetcher_warnings=[],
     )
-    html_cheap = render_daily_report(cheap_report, run_id=1, option_count=1500, elapsed_ms=0)
+    html_cheap, _ = render_daily_report(cheap_report, run_id=1, option_count=1500, elapsed_ms=0)
     assert "#e8f5e8" in html_cheap
 
     dear_report = DailyReport(
@@ -111,7 +111,7 @@ def test_render_banner_bg_varies_by_baseline_delta():
         missing_item_keys=[],
         fetcher_warnings=[],
     )
-    html_dear = render_daily_report(dear_report, run_id=1, option_count=1500, elapsed_ms=0)
+    html_dear, _ = render_daily_report(dear_report, run_id=1, option_count=1500, elapsed_ms=0)
     assert "#fde4e4" in html_dear
 
 
@@ -140,34 +140,36 @@ def test_filters_handle_none_values():
         missing_item_keys=[],
         fetcher_warnings=[],
     )
-    html = render_daily_report(report, run_id=1, option_count=1500, elapsed_ms=0)
+    html, _ = render_daily_report(report, run_id=1, option_count=1500, elapsed_ms=0)
     assert "—" in html
 
 
 def test_chart_empty_for_short_history():
-    assert render_total_history_chart([], 50000) == ""
-    assert render_total_history_chart([("2026-05-20", 60000)], 50000) == ""
+    assert render_total_history_chart([], 50000) == ("", None)
+    assert render_total_history_chart([("2026-05-20", 60000)], 50000) == ("", None)
 
 
-def test_chart_emits_base64_png_image():
+def test_chart_returns_html_and_png_bytes():
     history = [
         ("2026-05-18", 64000),
         ("2026-05-19", 64500),
         ("2026-05-20", 64200),
     ]
-    html = render_total_history_chart(history, baseline=50000)
-    assert 'src="data:image/png;base64,' in html
+    html, png = render_total_history_chart(history, baseline=50000)
+    assert 'src="cid:trend-chart"' in html
     assert "總價趨勢" in html
     assert "05-18" in html and "05-20" in html
+    assert png is not None and png[:8] == b"\x89PNG\r\n\x1a\n"
 
 
-def test_chart_uses_email_safe_html_only():
+def test_chart_html_is_email_safe():
     history = [("2026-05-18", 64000), ("2026-05-19", 64500)]
-    html = render_total_history_chart(history, baseline=50000)
+    html, _ = render_total_history_chart(history, baseline=50000)
     assert "<svg" not in html
     assert "position:absolute" not in html
     assert "display:flex" not in html
     assert "transform:" not in html
+    assert "data:image" not in html
 
 
 def test_chart_renders_into_daily_email():
@@ -183,7 +185,7 @@ def test_chart_renders_into_daily_email():
         fetcher_warnings=[],
     )
     history = [("2026-05-19", 1050), ("2026-05-20", 1100), ("2026-05-21", 1100)]
-    html = render_daily_report(
+    html, inline_images = render_daily_report(
         report,
         run_id=1,
         option_count=1500,
@@ -191,7 +193,9 @@ def test_chart_renders_into_daily_email():
         total_history=history,
     )
     assert "總價趨勢" in html
-    assert 'src="data:image/png;base64,' in html
+    assert 'src="cid:trend-chart"' in html
+    assert "trend-chart" in inline_images
+    assert inline_images["trend-chart"][:8] == b"\x89PNG\r\n\x1a\n"
 
 
 def test_chart_section_skipped_when_history_empty():
@@ -206,7 +210,7 @@ def test_chart_section_skipped_when_history_empty():
         missing_item_keys=[],
         fetcher_warnings=[],
     )
-    html = render_daily_report(
+    html, inline_images = render_daily_report(
         report,
         run_id=1,
         option_count=1500,
@@ -214,3 +218,4 @@ def test_chart_section_skipped_when_history_empty():
         total_history=[],
     )
     assert "總價趨勢" not in html
+    assert inline_images == {}

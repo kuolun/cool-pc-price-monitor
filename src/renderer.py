@@ -205,38 +205,41 @@ def _render_chart_png(
     return out.getvalue()
 
 
+CHART_CID = "trend-chart"
+
+
 def render_total_history_chart(
     history: list[tuple[str, int]],
     baseline: int,
-) -> str:
-    """Inline base64-PNG line chart of daily totals vs baseline.
+) -> tuple[str, bytes | None]:
+    """Render the trend chart and return (html_snippet, png_bytes).
 
-    Gmail strips inline <svg>; <img src="data:image/png;base64,...">
-    survives. Empty/single-point history collapses to an empty string so
-    the caller can skip the section. Image is rendered at 2x for retina,
-    displayed via CSS max-width 640px.
+    The HTML references the image via <img src="cid:trend-chart"> — Gmail
+    strips data: URIs, but renders cid: when the PNG is attached as
+    multipart/related. Empty history collapses to ("", None) so the caller
+    can skip the section.
     """
     if len(history) < 2:
-        return ""
+        return "", None
 
     png = _render_chart_png(history, baseline)
-    b64 = base64.b64encode(png).decode("ascii")
     n = len(history)
     first_date, last_date = history[0][0], history[-1][0]
 
     def _short(d: str) -> str:
         return d[5:] if len(d) >= 10 else d
 
-    return (
+    html = (
         '<div style="margin:16px 0;">'
         f'<div style="font-size:12px; color:#666; margin-bottom:4px;">'
         f"總價趨勢 · {n} 天（{_short(first_date)} → {_short(last_date)}）"
         "</div>"
-        f'<img src="data:image/png;base64,{b64}" alt="Total trend chart" '
+        f'<img src="cid:{CHART_CID}" alt="Total trend chart" '
         'style="width:100%; max-width:640px; height:auto; display:block; '
         'border-radius:6px;">'
         "</div>"
     )
+    return html, png
 
 
 def render_daily_report(
@@ -246,7 +249,13 @@ def render_daily_report(
     option_count: int,
     elapsed_ms: int,
     total_history: list[tuple[str, int]] | None = None,
-) -> str:
+) -> tuple[str, dict[str, bytes]]:
+    """Render the daily email and return (html, inline_images).
+
+    `inline_images` maps Content-ID → PNG bytes for any chart images;
+    pass it through to `notifier.send_email` so the images attach as
+    multipart/related (Gmail strips data: URIs but renders cid: refs).
+    """
     env = _make_env()
     tmpl = env.get_template("email.html.j2")
 
@@ -271,10 +280,15 @@ def render_daily_report(
         items_with_color.append(d)
 
     chart_svg = ""
+    inline_images: dict[str, bytes] = {}
     if total_history:
-        chart_svg = render_total_history_chart(total_history, report.total_baseline)
+        chart_svg, chart_png = render_total_history_chart(
+            total_history, report.total_baseline,
+        )
+        if chart_png is not None:
+            inline_images[CHART_CID] = chart_png
 
-    return tmpl.render(
+    html = tmpl.render(
         run_date=report.run_date.isoformat(),
         items=items_with_color,
         total_today=report.total_today,
@@ -293,6 +307,7 @@ def render_daily_report(
         option_count=option_count,
         elapsed_ms=elapsed_ms,
     )
+    return html, inline_images
 
 
 def render_alert(

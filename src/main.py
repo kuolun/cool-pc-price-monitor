@@ -80,7 +80,7 @@ def main(argv: list[str] | None = None) -> int:
             now,
         )
 
-        html = render_daily_report(
+        html, inline_images = render_daily_report(
             report,
             run_id=run_id,
             option_count=option_count,
@@ -108,7 +108,10 @@ def main(argv: list[str] | None = None) -> int:
             return 0
 
         smtp_cfg = SMTPConfig.from_env()
-        _notifier.send_email(cfg=smtp_cfg, subject=subject, html_body=html)
+        _notifier.send_email(
+            cfg=smtp_cfg, subject=subject, html_body=html,
+            inline_images=inline_images,
+        )
         store.record_run_end(run_id, datetime.now(), status, option_count)
         log.info("sent email to %s", smtp_cfg.to_email)
         return 0
