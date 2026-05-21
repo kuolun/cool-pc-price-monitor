@@ -1,18 +1,35 @@
 from datetime import date
 
 from src.models import DailyReport, ItemDiff, TrackingRule
-from src.renderer import render_alert, render_daily_report
+from src.renderer import (
+    render_alert,
+    render_daily_report,
+    render_total_history_chart,
+)
 
 
 def _rule(key, label, qty=1, baseline=1000):
     return TrackingRule(
-        key=key, label=label, quantity=qty, baseline_price=baseline,
-        match_all=[key], exclude=[],
+        key=key,
+        label=label,
+        quantity=qty,
+        baseline_price=baseline,
+        match_all=[key],
+        exclude=[],
     )
 
 
-def _item(rule, today=None, y=None, low7=None, low30=None, delta_base=None,
-          is_7d_low=False, not_found=False, warning=None):
+def _item(
+    rule,
+    today=None,
+    y=None,
+    low7=None,
+    low30=None,
+    delta_base=None,
+    is_7d_low=False,
+    not_found=False,
+    warning=None,
+):
     return ItemDiff(
         rule=rule,
         today_price=today,
@@ -20,10 +37,14 @@ def _item(rule, today=None, y=None, low7=None, low30=None, delta_base=None,
         yesterday_price=y,
         delta_yesterday_abs=(today - y) if (today is not None and y is not None) else None,
         delta_yesterday_pct=None,
-        low_7d=low7, low_30d=low30, high_30d=None,
+        low_7d=low7,
+        low_30d=low30,
+        high_30d=None,
         delta_baseline_abs=delta_base,
-        is_7d_low=is_7d_low, is_30d_low=False,
-        not_found=not_found, warning=warning,
+        is_7d_low=is_7d_low,
+        is_30d_low=False,
+        not_found=not_found,
+        warning=warning,
     )
 
 
@@ -31,12 +52,15 @@ def test_render_produces_nonempty_html():
     cpu = _rule("cpu", "AMD R7 7700 MPK", baseline=6490)
     report = DailyReport(
         run_date=date(2026, 4, 21),
-        items=[_item(cpu, today=6390, y=6490, low7=6390, low30=6390,
-                     delta_base=-100, is_7d_low=True)],
-        total_today=6390, total_baseline=6490,
+        items=[
+            _item(cpu, today=6390, y=6490, low7=6390, low30=6390, delta_base=-100, is_7d_low=True)
+        ],
+        total_today=6390,
+        total_baseline=6490,
         total_delta_baseline_abs=-100,
         total_delta_yesterday_abs=-100,
-        missing_item_keys=[], fetcher_warnings=[],
+        missing_item_keys=[],
+        fetcher_warnings=[],
     )
     html = render_daily_report(report, run_id=42, option_count=1500, elapsed_ms=3200)
     assert "AMD R7 7700 MPK" in html
@@ -50,10 +74,12 @@ def test_render_shows_not_found_row():
     report = DailyReport(
         run_date=date(2026, 4, 21),
         items=[_item(cpu, not_found=True)],
-        total_today=0, total_baseline=1000,
+        total_today=0,
+        total_baseline=1000,
         total_delta_baseline_abs=-1000,
         total_delta_yesterday_abs=None,
-        missing_item_keys=["cpu"], fetcher_warnings=["cpu 未找到"],
+        missing_item_keys=["cpu"],
+        fetcher_warnings=["cpu 未找到"],
     )
     html = render_daily_report(report, run_id=1, option_count=1500, elapsed_ms=100)
     assert "今日未找到" in html
@@ -65,10 +91,12 @@ def test_render_banner_bg_varies_by_baseline_delta():
     cheap_report = DailyReport(
         run_date=date(2026, 4, 21),
         items=[_item(cpu, today=900, y=1000, low7=900, low30=900, delta_base=-100)],
-        total_today=900, total_baseline=1000,
+        total_today=900,
+        total_baseline=1000,
         total_delta_baseline_abs=-100,
         total_delta_yesterday_abs=-100,
-        missing_item_keys=[], fetcher_warnings=[],
+        missing_item_keys=[],
+        fetcher_warnings=[],
     )
     html_cheap = render_daily_report(cheap_report, run_id=1, option_count=1500, elapsed_ms=0)
     assert "#e8f5e8" in html_cheap
@@ -76,10 +104,12 @@ def test_render_banner_bg_varies_by_baseline_delta():
     dear_report = DailyReport(
         run_date=date(2026, 4, 21),
         items=[_item(cpu, today=1100, y=1000, low7=1000, low30=1000, delta_base=100)],
-        total_today=1100, total_baseline=1000,
+        total_today=1100,
+        total_baseline=1000,
         total_delta_baseline_abs=100,
         total_delta_yesterday_abs=100,
-        missing_item_keys=[], fetcher_warnings=[],
+        missing_item_keys=[],
+        fetcher_warnings=[],
     )
     html_dear = render_daily_report(dear_report, run_id=1, option_count=1500, elapsed_ms=0)
     assert "#fde4e4" in html_dear
@@ -103,10 +133,78 @@ def test_filters_handle_none_values():
     report = DailyReport(
         run_date=date(2026, 4, 21),
         items=[_item(cpu, today=1000, y=None, low7=None, low30=None, delta_base=0)],
-        total_today=1000, total_baseline=1000,
+        total_today=1000,
+        total_baseline=1000,
         total_delta_baseline_abs=0,
         total_delta_yesterday_abs=None,
-        missing_item_keys=[], fetcher_warnings=[],
+        missing_item_keys=[],
+        fetcher_warnings=[],
     )
     html = render_daily_report(report, run_id=1, option_count=1500, elapsed_ms=0)
     assert "—" in html
+
+
+def test_chart_empty_for_short_history():
+    assert render_total_history_chart([], 50000) == ""
+    assert render_total_history_chart([("2026-05-20", 60000)], 50000) == ""
+
+
+def test_chart_includes_polyline_dates_and_baseline():
+    history = [
+        ("2026-05-18", 64000),
+        ("2026-05-19", 64500),
+        ("2026-05-20", 64200),
+    ]
+    svg = render_total_history_chart(history, baseline=50000)
+    assert "<svg" in svg and "</svg>" in svg
+    assert "<polyline" in svg
+    assert "baseline $50,000" in svg
+    assert "05-18" in svg and "05-20" in svg
+    assert "$64,200" in svg
+    assert "low $64,000" in svg and "high $64,500" in svg
+
+
+def test_chart_renders_into_daily_email():
+    cpu = _rule("cpu", "CPU", baseline=1000)
+    report = DailyReport(
+        run_date=date(2026, 5, 21),
+        items=[_item(cpu, today=1100, y=1100, low7=1100, low30=1100, delta_base=100)],
+        total_today=1100,
+        total_baseline=1000,
+        total_delta_baseline_abs=100,
+        total_delta_yesterday_abs=0,
+        missing_item_keys=[],
+        fetcher_warnings=[],
+    )
+    history = [("2026-05-19", 1050), ("2026-05-20", 1100), ("2026-05-21", 1100)]
+    html = render_daily_report(
+        report,
+        run_id=1,
+        option_count=1500,
+        elapsed_ms=0,
+        total_history=history,
+    )
+    assert "<svg" in html
+    assert "baseline $1,000" in html
+
+
+def test_chart_section_skipped_when_history_empty():
+    cpu = _rule("cpu", "CPU", baseline=1000)
+    report = DailyReport(
+        run_date=date(2026, 5, 21),
+        items=[_item(cpu, today=1000, y=1000, low7=1000, low30=1000, delta_base=0)],
+        total_today=1000,
+        total_baseline=1000,
+        total_delta_baseline_abs=0,
+        total_delta_yesterday_abs=0,
+        missing_item_keys=[],
+        fetcher_warnings=[],
+    )
+    html = render_daily_report(
+        report,
+        run_id=1,
+        option_count=1500,
+        elapsed_ms=0,
+        total_history=[],
+    )
+    assert "<svg" not in html

@@ -1,4 +1,5 @@
 """Entrypoint: fetch → match → store → diff → render → notify."""
+
 from __future__ import annotations
 
 import argparse
@@ -6,7 +7,7 @@ import logging
 import sys
 import time
 import traceback
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -23,12 +24,9 @@ from src.storage import Storage
 
 def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Coolpc price monitor daily run")
-    p.add_argument("--dry-run", action="store_true",
-                   help="不發 email、不寫 DB（只印到 stdout）")
-    p.add_argument("--config", default="config/products.yaml",
-                   help="YAML 設定檔路徑")
-    p.add_argument("--db", default="data/prices.db",
-                   help="SQLite 資料庫路徑")
+    p.add_argument("--dry-run", action="store_true", help="不發 email、不寫 DB（只印到 stdout）")
+    p.add_argument("--config", default="config/products.yaml", help="YAML 設定檔路徑")
+    p.add_argument("--db", default="data/prices.db", help="SQLite 資料庫路徑")
     return p.parse_args(argv)
 
 
@@ -51,8 +49,7 @@ def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
 
     cfg = load_products(args.config)
-    log.info("loaded config: %d rules, baseline date=%s",
-             len(cfg.rules), cfg.baseline.date)
+    log.info("loaded config: %d rules, baseline date=%s", len(cfg.rules), cfg.baseline.date)
 
     now = datetime.now()
     Path(args.db).parent.mkdir(parents=True, exist_ok=True)
@@ -76,15 +73,30 @@ def main(argv: list[str] | None = None) -> int:
         report = build_daily_report(cfg=cfg, matches=matches, store=store, now=now)
         elapsed_ms = int((time.monotonic() - t0) * 1000)
 
-        html = render_daily_report(
-            report, run_id=run_id, option_count=option_count, elapsed_ms=elapsed_ms,
-        )
-        subject = _compose_subject(
-            report.run_date, report.total_today, report.total_delta_baseline_abs,
+        quantities = {r.key: r.quantity for r in cfg.rules}
+        total_history = store.query_total_history(
+            quantities,
+            now - timedelta(days=30),
+            now,
         )
 
-        print(f"today total ${report.total_today:,} "
-              f"(vs baseline {report.total_delta_baseline_abs:+,})")
+        html = render_daily_report(
+            report,
+            run_id=run_id,
+            option_count=option_count,
+            elapsed_ms=elapsed_ms,
+            total_history=total_history,
+        )
+        subject = _compose_subject(
+            report.run_date,
+            report.total_today,
+            report.total_delta_baseline_abs,
+        )
+
+        print(
+            f"today total ${report.total_today:,} "
+            f"(vs baseline {report.total_delta_baseline_abs:+,})"
+        )
 
         status = "partial" if report.missing_item_keys else "ok"
 
@@ -104,7 +116,10 @@ def main(argv: list[str] | None = None) -> int:
     except FetcherError as e:
         log.error("fetcher failed: %s", e)
         store.record_run_end(
-            run_id, datetime.now(), "failed", error=str(e),
+            run_id,
+            datetime.now(),
+            "failed",
+            error=str(e),
         )
         if not args.dry_run:
             try:
@@ -127,7 +142,9 @@ def main(argv: list[str] | None = None) -> int:
     except Exception as e:
         log.exception("unexpected failure")
         store.record_run_end(
-            run_id, datetime.now(), "failed",
+            run_id,
+            datetime.now(),
+            "failed",
             error=f"{type(e).__name__}: {e}\n{traceback.format_exc()}",
         )
         return 1

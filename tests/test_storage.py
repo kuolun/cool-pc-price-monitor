@@ -13,17 +13,30 @@ def store():
 
 def _rule(key):
     return TrackingRule(
-        key=key, label=key.upper(), quantity=1, baseline_price=1000,
-        match_all=[key], exclude=[],
+        key=key,
+        label=key.upper(),
+        quantity=1,
+        baseline_price=1000,
+        match_all=[key],
+        exclude=[],
     )
 
 
 def _match(rule, price, value="1", mode="keyword"):
-    raw = None if mode == "not_found" else RawProduct(
-        option_value=value, option_text=f"{rule.key} $ {price}", price=price, optgroup=None,
+    raw = (
+        None
+        if mode == "not_found"
+        else RawProduct(
+            option_value=value,
+            option_text=f"{rule.key} $ {price}",
+            price=price,
+            optgroup=None,
+        )
     )
     return MatchResult(
-        rule=rule, raw=raw, mode=mode,
+        rule=rule,
+        raw=raw,
+        mode=mode,
         confidence=1.0 if mode != "not_found" else 0.0,
     )
 
@@ -95,3 +108,66 @@ def test_query_low_returns_none_when_all_null(store):
 
     low = store.query_low("cpu", datetime(2026, 4, 1), datetime(2026, 4, 30))
     assert low is None
+
+
+def _record_day(store, day, prices_by_key, status="ok"):
+    """Write a (run, snapshots) tuple on `day` with given prices."""
+    rid = store.record_run_start(day)
+    matches = [_match(_rule(k), p) for k, p in prices_by_key.items()]
+    store.record_snapshots(rid, matches)
+    store.record_run_end(rid, day, status, 1500)
+
+
+def test_query_total_history_aggregates_per_day(store):
+    quantities = {"cpu": 1, "ssd": 2}
+    _record_day(store, datetime(2026, 4, 20, 1, 0), {"cpu": 6500, "ssd": 9000})
+    _record_day(store, datetime(2026, 4, 21, 1, 0), {"cpu": 6490, "ssd": 9100})
+
+    history = store.query_total_history(
+        quantities,
+        datetime(2026, 4, 1),
+        datetime(2026, 4, 30),
+    )
+    assert history == [
+        ("2026-04-20", 6500 + 9000 * 2),
+        ("2026-04-21", 6490 + 9100 * 2),
+    ]
+
+
+def test_query_total_history_skips_days_with_missing_rule(store):
+    quantities = {"cpu": 1, "mb": 1}
+    _record_day(store, datetime(2026, 4, 20, 1, 0), {"cpu": 6500})  # mb missing
+    _record_day(store, datetime(2026, 4, 21, 1, 0), {"cpu": 6490, "mb": 3990})
+
+    history = store.query_total_history(
+        quantities,
+        datetime(2026, 4, 1),
+        datetime(2026, 4, 30),
+    )
+    assert history == [("2026-04-21", 6490 + 3990)]
+
+
+def test_query_total_history_ignores_failed_runs(store):
+    quantities = {"cpu": 1}
+    _record_day(store, datetime(2026, 4, 20, 1, 0), {"cpu": 6500}, status="failed")
+    _record_day(store, datetime(2026, 4, 21, 1, 0), {"cpu": 6490}, status="ok")
+
+    history = store.query_total_history(
+        quantities,
+        datetime(2026, 4, 1),
+        datetime(2026, 4, 30),
+    )
+    assert history == [("2026-04-21", 6490)]
+
+
+def test_query_total_history_uses_latest_run_per_day(store):
+    quantities = {"cpu": 1}
+    _record_day(store, datetime(2026, 4, 20, 1, 0), {"cpu": 6500})
+    _record_day(store, datetime(2026, 4, 20, 10, 0), {"cpu": 6400})
+
+    history = store.query_total_history(
+        quantities,
+        datetime(2026, 4, 1),
+        datetime(2026, 4, 30),
+    )
+    assert history == [("2026-04-20", 6400)]
