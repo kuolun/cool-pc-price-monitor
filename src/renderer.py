@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import base64
+import io
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
+from PIL import Image, ImageDraw, ImageFont
 
 from src.models import DailyReport
 
@@ -69,110 +72,171 @@ def _banner_bg_for(delta: int) -> str:
     return _GRAY_BG
 
 
-def render_total_history_chart(
+_FONT_PATHS = [
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",  # GHA Ubuntu
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+    "/System/Library/Fonts/Supplemental/Arial.ttf",  # macOS
+    "/System/Library/Fonts/Helvetica.ttc",
+    "/Library/Fonts/Arial.ttf",
+]
+
+
+def _load_font(size: int) -> ImageFont.ImageFont:
+    for path in _FONT_PATHS:
+        try:
+            return ImageFont.truetype(path, size)
+        except OSError:
+            continue
+    return ImageFont.load_default()
+
+
+def _dashed_line(
+    draw: ImageDraw.ImageDraw,
+    x0: int, y0: int, x1: int, y1: int,
+    fill: str, width: int = 1,
+    dash: int = 6, gap: int = 4,
+) -> None:
+    total = max(1, x1 - x0)
+    step = dash + gap
+    x = x0
+    while x < x1:
+        seg_end = min(x + dash, x1)
+        draw.line([(x, y0), (seg_end, y1)], fill=fill, width=width)
+        x += step
+
+
+def _render_chart_png(
     history: list[tuple[str, int]],
     baseline: int,
     *,
-    plot_h: int = 120,
-) -> str:
-    """HTML/CSS column chart of daily totals vs baseline.
-
-    Pure inline-styled <table> — Gmail strips inline <svg>, but renders
-    <table> with colored <div>s reliably. Each column = one day; bar height
-    is proportional to (total − y_lo) / (y_hi − y_lo). Bars above baseline
-    are red, below are green. Empty when <2 points so the caller can skip.
+    width: int = 1280,
+    height: int = 400,
+) -> bytes:
+    """Render the trend chart as PNG bytes. Width/height are pixel dimensions
+    of the source image — caller is expected to display it scaled down (CSS
+    max-width:640) so the rendered email looks crisp on retina screens.
     """
-    if len(history) < 2:
-        return ""
+    img = Image.new("RGB", (width, height), "#fafafa")
+    draw = ImageDraw.Draw(img)
+
+    f_title = _load_font(22)
+    f_axis = _load_font(20)
+    f_value = _load_font(24)
+
+    pad_l, pad_r, pad_t, pad_b = 130, 40, 60, 70
+    plot_w = width - pad_l - pad_r
+    plot_h = height - pad_t - pad_b
 
     totals = [t for _, t in history]
     y_min = min(min(totals), baseline)
     y_max = max(max(totals), baseline)
     if y_max == y_min:
         y_max = y_min + 1
-    pad = max(1, (y_max - y_min) * 0.08)
+    pad = max(1, (y_max - y_min) * 0.10)
     y_lo = y_min - pad
     y_hi = y_max + pad
-    span = y_hi - y_lo
-
-    def bar_h(v: int) -> int:
-        return max(1, round(plot_h * (v - y_lo) / span))
-
-    baseline_h = round(plot_h * (baseline - y_lo) / span)
-    min_total = min(totals)
-    max_total = max(totals)
-    last_total = totals[-1]
-    first_date, last_date = history[0][0], history[-1][0]
     n = len(history)
 
-    headline_color = (
+    def x_at(i: int) -> int:
+        return pad_l + round(plot_w * i / max(1, n - 1))
+
+    def y_at(v: float) -> int:
+        return pad_t + round(plot_h * (1 - (v - y_lo) / (y_hi - y_lo)))
+
+    draw.line([(pad_l, pad_t), (pad_l, pad_t + plot_h)], fill="#ddd", width=2)
+    draw.line(
+        [(pad_l, pad_t + plot_h), (pad_l + plot_w, pad_t + plot_h)],
+        fill="#ddd", width=2,
+    )
+
+    by = y_at(baseline)
+    _dashed_line(draw, pad_l, by, pad_l + plot_w, by, fill="#888", width=2, dash=14, gap=10)
+    draw.text(
+        (pad_l + plot_w - 8, by - 28),
+        f"baseline ${baseline:,}",
+        fill="#888", font=f_axis, anchor="ra",
+    )
+
+    draw.text((pad_l - 12, pad_t - 8), f"${y_hi:,.0f}", fill="#999", font=f_axis, anchor="ra")
+    draw.text(
+        (pad_l - 12, pad_t + plot_h - 8),
+        f"${y_lo:,.0f}", fill="#999", font=f_axis, anchor="ra",
+    )
+
+    last_total = totals[-1]
+    line_color = (
         _RED if last_total > baseline
         else _GREEN if last_total < baseline
         else _GRAY
     )
 
+    points = [(x_at(i), y_at(t)) for i, t in enumerate(totals)]
+    if len(points) >= 2:
+        draw.line(points, fill=line_color, width=4, joint="curve")
+    for px, py in points:
+        draw.ellipse([(px - 4, py - 4), (px + 4, py + 4)], fill=line_color)
+    lx, ly = points[-1]
+    draw.ellipse([(lx - 7, ly - 7), (lx + 7, ly + 7)], fill=line_color)
+
+    draw.text((lx - 12, ly - 28), f"${last_total:,}", fill=line_color, font=f_value, anchor="ra")
+
     def _short(d: str) -> str:
         return d[5:] if len(d) >= 10 else d
 
-    bars_html = []
-    for _, t in history:
-        h = bar_h(t)
-        color = _RED if t > baseline else (_GREEN if t < baseline else _GRAY)
-        bars_html.append(
-            f'<td style="vertical-align:bottom; padding:0 1px; height:{plot_h}px;">'
-            f'<div style="height:{h}px; background:{color}; min-width:6px;"></div>'
-            f'</td>'
-        )
+    draw.text((pad_l, pad_t + plot_h + 16), _short(history[0][0]), fill="#666", font=f_axis)
+    draw.text(
+        (pad_l + plot_w, pad_t + plot_h + 16),
+        _short(history[-1][0]), fill="#666", font=f_axis, anchor="ra",
+    )
 
-    label_top_h = max(0, plot_h - baseline_h - 8)
-    label_bot_h = max(0, baseline_h - 8)
+    title = (
+        f"Total trend · {n} days ({_short(history[0][0])} → {_short(history[-1][0])})"
+    )
+    draw.text((pad_l, pad_t - 36), title, fill="#666", font=f_title)
 
-    return f"""
-<table cellspacing="0" cellpadding="0" border="0" width="100%"
-       style="border-collapse:collapse; background:#fafafa; border-radius:6px; margin:16px 0;">
-  <tr>
-    <td style="padding:10px 14px 4px 14px;">
-      <table cellspacing="0" cellpadding="0" border="0" width="100%"
-             style="border-collapse:collapse; font-size:11px; color:#666;">
-        <tr>
-          <td align="left">總價趨勢 · {n} 天（{_short(first_date)} → {_short(last_date)}）</td>
-          <td align="right" style="color:{headline_color}; font-weight:600;">最新 ${last_total:,}</td>
-        </tr>
-      </table>
-    </td>
-  </tr>
-  <tr>
-    <td style="padding:0 14px 4px 14px;">
-      <table cellspacing="0" cellpadding="0" border="0" width="100%"
-             style="border-collapse:collapse; table-layout:fixed;">
-        <tr>
-          <td width="74" valign="top" align="right"
-              style="font-size:10px; color:#999; padding-right:6px;">
-            <div style="height:16px; line-height:16px;">${y_hi:,.0f}</div>
-            <div style="height:{label_top_h}px;"></div>
-            <div style="height:16px; line-height:16px; color:#888;">baseline ${baseline:,}</div>
-            <div style="height:{label_bot_h}px;"></div>
-            <div style="height:16px; line-height:16px;">${y_lo:,.0f}</div>
-          </td>
-          {"".join(bars_html)}
-        </tr>
-      </table>
-    </td>
-  </tr>
-  <tr>
-    <td style="padding:0 14px 10px 14px;">
-      <table cellspacing="0" cellpadding="0" border="0" width="100%"
-             style="border-collapse:collapse; font-size:10px; color:#999;">
-        <tr>
-          <td align="left" style="padding-left:80px;">{_short(first_date)}</td>
-          <td align="center">low ${min_total:,} · high ${max_total:,}</td>
-          <td align="right">{_short(last_date)}</td>
-        </tr>
-      </table>
-    </td>
-  </tr>
-</table>
-""".strip()
+    summary = f"low ${min(totals):,} · high ${max(totals):,}"
+    draw.text(
+        (pad_l + plot_w // 2, pad_t + plot_h + 16),
+        summary, fill="#999", font=f_axis, anchor="ma",
+    )
+
+    out = io.BytesIO()
+    img.save(out, format="PNG", optimize=True)
+    return out.getvalue()
+
+
+def render_total_history_chart(
+    history: list[tuple[str, int]],
+    baseline: int,
+) -> str:
+    """Inline base64-PNG line chart of daily totals vs baseline.
+
+    Gmail strips inline <svg>; <img src="data:image/png;base64,...">
+    survives. Empty/single-point history collapses to an empty string so
+    the caller can skip the section. Image is rendered at 2x for retina,
+    displayed via CSS max-width 640px.
+    """
+    if len(history) < 2:
+        return ""
+
+    png = _render_chart_png(history, baseline)
+    b64 = base64.b64encode(png).decode("ascii")
+    n = len(history)
+    first_date, last_date = history[0][0], history[-1][0]
+
+    def _short(d: str) -> str:
+        return d[5:] if len(d) >= 10 else d
+
+    return (
+        '<div style="margin:16px 0;">'
+        f'<div style="font-size:12px; color:#666; margin-bottom:4px;">'
+        f"總價趨勢 · {n} 天（{_short(first_date)} → {_short(last_date)}）"
+        "</div>"
+        f'<img src="data:image/png;base64,{b64}" alt="Total trend chart" '
+        'style="width:100%; max-width:640px; height:auto; display:block; '
+        'border-radius:6px;">'
+        "</div>"
+    )
 
 
 def render_daily_report(

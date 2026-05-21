@@ -149,22 +149,19 @@ def test_chart_empty_for_short_history():
     assert render_total_history_chart([("2026-05-20", 60000)], 50000) == ""
 
 
-def test_chart_includes_bars_dates_and_baseline():
+def test_chart_emits_base64_png_image():
     history = [
         ("2026-05-18", 64000),
         ("2026-05-19", 64500),
         ("2026-05-20", 64200),
     ]
     html = render_total_history_chart(history, baseline=50000)
-    assert "<table" in html and "</table>" in html
-    assert "baseline $50,000" in html
+    assert 'src="data:image/png;base64,' in html
+    assert "總價趨勢" in html
     assert "05-18" in html and "05-20" in html
-    assert "最新 $64,200" in html
-    assert "low $64,000 · high $64,500" in html
-    assert "background:#c92a2a" in html
 
 
-def test_chart_uses_email_safe_css_only():
+def test_chart_uses_email_safe_html_only():
     history = [("2026-05-18", 64000), ("2026-05-19", 64500)]
     html = render_total_history_chart(history, baseline=50000)
     assert "<svg" not in html
@@ -194,7 +191,7 @@ def test_chart_renders_into_daily_email():
         total_history=history,
     )
     assert "總價趨勢" in html
-    assert "baseline $1,000" in html
+    assert 'src="data:image/png;base64,' in html
 
 
 def test_chart_section_skipped_when_history_empty():
