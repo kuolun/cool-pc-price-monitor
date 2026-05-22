@@ -60,3 +60,22 @@ def test_send_email_raises_after_max_retries(mocker, smtp_cfg):
 
     with pytest.raises(smtplib.SMTPException):
         send_email(cfg=smtp_cfg, subject="s", html_body="<p>x</p>")
+
+
+def test_send_email_attaches_inline_images_as_related(mocker, smtp_cfg):
+    fake_smtp = MagicMock()
+    mocker.patch("smtplib.SMTP", return_value=fake_smtp)
+
+    png = b"\x89PNG\r\n\x1a\nfake-bytes"
+    send_email(
+        cfg=smtp_cfg,
+        subject="s",
+        html_body='<p>see <img src="cid:trend-chart"></p>',
+        inline_images={"trend-chart": png},
+    )
+
+    sent_msg = fake_smtp.__enter__.return_value.send_message.call_args[0][0]
+    raw = sent_msg.as_string()
+    assert "Content-ID: <trend-chart>" in raw
+    assert "image/png" in raw
+    assert "multipart/related" in raw

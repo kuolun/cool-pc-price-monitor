@@ -17,6 +17,10 @@
     </div>
   </div>
 
+  {% if chart_svg %}
+  {{ chart_svg | safe }}
+  {% endif %}
+
   {% if warnings %}
   <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 12px; margin: 16px 0;">
     <strong>⚠️ 需注意：</strong>

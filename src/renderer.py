@@ -1,9 +1,13 @@
 """Jinja2 rendering for daily HTML email + alert email."""
+
 from __future__ import annotations
 
+import base64
+import io
 from pathlib import Path
 
 from jinja2 import Environment, FileSystemLoader, select_autoescape
+from PIL import Image, ImageDraw, ImageFont
 
 from src.models import DailyReport
 
@@ -68,10 +72,237 @@ def _banner_bg_for(delta: int) -> str:
     return _GRAY_BG
 
 
+_FONT_PATHS = [
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",  # GHA Ubuntu
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+    "/System/Library/Fonts/Supplemental/Arial.ttf",  # macOS
+    "/System/Library/Fonts/Helvetica.ttc",
+    "/Library/Fonts/Arial.ttf",
+]
+
+
+def _load_font(size: int) -> ImageFont.ImageFont:
+    for path in _FONT_PATHS:
+        try:
+            return ImageFont.truetype(path, size)
+        except OSError:
+            continue
+    return ImageFont.load_default()
+
+
+def _dashed_line(
+    draw: ImageDraw.ImageDraw,
+    x0: int, y0: int, x1: int, y1: int,
+    fill: str, width: int = 1,
+    dash: int = 6, gap: int = 4,
+) -> None:
+    total = max(1, x1 - x0)
+    step = dash + gap
+    x = x0
+    while x < x1:
+        seg_end = min(x + dash, x1)
+        draw.line([(x, y0), (seg_end, y1)], fill=fill, width=width)
+        x += step
+
+
+def _render_chart_png(
+    history: list[tuple[str, int]],
+    baseline: int,
+    *,
+    width: int = 1280,
+    height: int = 400,
+) -> bytes:
+    """Render the trend chart as PNG bytes. Width/height are pixel dimensions
+    of the source image — caller is expected to display it scaled down (CSS
+    max-width:640) so the rendered email looks crisp on retina screens.
+    """
+    img = Image.new("RGB", (width, height), "#fafafa")
+    draw = ImageDraw.Draw(img)
+
+    f_title = _load_font(22)
+    f_axis = _load_font(20)
+    f_value = _load_font(24)
+
+    totals = [t for _, t in history]
+
+    # Width the left gutter so the widest y-axis label (e.g. "high $64,510")
+    # fits without clipping. 20px buffer covers the text-to-chart gap plus
+    # font hinting slop on glyphs that hang past their advance width.
+    sample = f"high ${max(max(totals), baseline):,}"
+    label_w = int(f_axis.getlength(sample))
+    pad_l = max(label_w + 28, 130)
+    pad_r, pad_t, pad_b = 40, 60, 70
+    plot_w = width - pad_l - pad_r
+    plot_h = height - pad_t - pad_b
+
+    y_min = min(min(totals), baseline)
+    y_max = max(max(totals), baseline)
+    if y_max == y_min:
+        y_max = y_min + 1
+    pad = max(1, (y_max - y_min) * 0.10)
+    y_lo = y_min - pad
+    y_hi = y_max + pad
+    n = len(history)
+
+    def x_at(i: int) -> int:
+        return pad_l + round(plot_w * i / max(1, n - 1))
+
+    def y_at(v: float) -> int:
+        return pad_t + round(plot_h * (1 - (v - y_lo) / (y_hi - y_lo)))
+
+    draw.line([(pad_l, pad_t), (pad_l, pad_t + plot_h)], fill="#ddd", width=2)
+    draw.line(
+        [(pad_l, pad_t + plot_h), (pad_l + plot_w, pad_t + plot_h)],
+        fill="#ddd", width=2,
+    )
+
+    by = y_at(baseline)
+    _dashed_line(draw, pad_l, by, pad_l + plot_w, by, fill="#888", width=2, dash=14, gap=10)
+    draw.text(
+        (pad_l + plot_w - 8, by - 28),
+        f"baseline ${baseline:,}",
+        fill="#888", font=f_axis, anchor="ra",
+    )
+
+    max_total = max(totals)
+    min_total = min(totals)
+    if max_total != min_total:
+        draw.text(
+            (pad_l - 12, y_at(max_total) - 14),
+            f"high ${max_total:,}", fill="#999", font=f_axis, anchor="ra",
+        )
+        draw.text(
+            (pad_l - 12, y_at(min_total) - 14),
+            f"low ${min_total:,}", fill="#999", font=f_axis, anchor="ra",
+        )
+    else:
+        draw.text(
+            (pad_l - 12, y_at(max_total) - 14),
+            f"${max_total:,}", fill="#999", font=f_axis, anchor="ra",
+        )
+
+    last_total = totals[-1]
+    line_color = (
+        _RED if last_total > baseline
+        else _GREEN if last_total < baseline
+        else _GRAY
+    )
+
+    points = [(x_at(i), y_at(t)) for i, t in enumerate(totals)]
+    if len(points) >= 2:
+        draw.line(points, fill=line_color, width=4, joint="curve")
+
+    # Dots only at "interesting" days: first, last, and every change point.
+    # Skipping the dot on every flat day makes the chart far less noisy when
+    # prices sit at one level for stretches — the line still carries the
+    # full time series so the x-axis stays proportional.
+    interesting = {0, len(totals) - 1}
+    for i in range(1, len(totals)):
+        if totals[i] != totals[i - 1]:
+            interesting.add(i)
+            interesting.add(i - 1)
+    for i in sorted(interesting):
+        px, py = points[i]
+        draw.ellipse([(px - 4, py - 4), (px + 4, py + 4)], fill=line_color)
+
+    lx, ly = points[-1]
+    draw.ellipse([(lx - 7, ly - 7), (lx + 7, ly + 7)], fill=line_color)
+
+    draw.text(
+        (lx - 12, ly - 28),
+        f"today ${last_total:,}", fill=line_color, font=f_value, anchor="ra",
+    )
+
+    def _short(d: str) -> str:
+        return d[5:] if len(d) >= 10 else d
+
+    draw.text((pad_l, pad_t + plot_h + 16), _short(history[0][0]), fill="#666", font=f_axis)
+    draw.text(
+        (pad_l + plot_w, pad_t + plot_h + 16),
+        _short(history[-1][0]), fill="#666", font=f_axis, anchor="ra",
+    )
+
+    title = (
+        f"Total daily price · {n} days ({_short(history[0][0])} → {_short(history[-1][0])})"
+    )
+    draw.text((pad_l, pad_t - 36), title, fill="#666", font=f_title)
+
+    out = io.BytesIO()
+    img.save(out, format="PNG", optimize=True)
+    return out.getvalue()
+
+
+CHART_CID = "trend-chart"
+
+
+def render_total_history_chart(
+    history: list[tuple[str, int]],
+    baseline: int,
+) -> tuple[str, bytes | None]:
+    """Render the trend chart and return (html_snippet, png_bytes).
+
+    The HTML references the image via <img src="cid:trend-chart"> — Gmail
+    strips data: URIs, but renders cid: when the PNG is attached as
+    multipart/related. Empty history collapses to ("", None) so the caller
+    can skip the section.
+    """
+    if len(history) < 2:
+        return "", None
+
+    png = _render_chart_png(history, baseline)
+    n = len(history)
+    first_date, last_date = history[0][0], history[-1][0]
+
+    def _short(d: str) -> str:
+        return d[5:] if len(d) >= 10 else d
+
+    last_total = history[-1][1]
+    totals = [t for _, t in history]
+    min_total, max_total = min(totals), max(totals)
+    line_color = (
+        _RED if last_total > baseline
+        else _GREEN if last_total < baseline
+        else _GRAY
+    )
+
+    legend = (
+        '<div style="font-size:11px; color:#888; margin-bottom:6px;">'
+        f'<span style="color:{line_color};">━━</span> 每日總價（紅點＝今日 ${last_total:,}）'
+        "　·　"
+        f'<span style="color:#888;">- - -</span> baseline 購買日基準（${baseline:,}）'
+        "　·　"
+        f"區間 ${min_total:,} – ${max_total:,}"
+        "</div>"
+    )
+
+    html = (
+        '<div style="margin:16px 0;">'
+        f'<div style="font-size:12px; color:#666; margin-bottom:4px; font-weight:600;">'
+        f"總價趨勢 · 過去 {n} 天（{_short(first_date)} → {_short(last_date)}）"
+        "</div>"
+        f"{legend}"
+        f'<img src="cid:{CHART_CID}" alt="Total trend chart" '
+        'style="width:100%; max-width:640px; height:auto; display:block; '
+        'border-radius:6px;">'
+        "</div>"
+    )
+    return html, png
+
+
 def render_daily_report(
-    report: DailyReport, *,
-    run_id: int, option_count: int, elapsed_ms: int,
-) -> str:
+    report: DailyReport,
+    *,
+    run_id: int,
+    option_count: int,
+    elapsed_ms: int,
+    total_history: list[tuple[str, int]] | None = None,
+) -> tuple[str, dict[str, bytes]]:
+    """Render the daily email and return (html, inline_images).
+
+    `inline_images` maps Content-ID → PNG bytes for any chart images;
+    pass it through to `notifier.send_email` so the images attach as
+    multipart/related (Gmail strips data: URIs but renders cid: refs).
+    """
     env = _make_env()
     tmpl = env.get_template("email.html.j2")
 
@@ -95,7 +326,16 @@ def render_daily_report(
         d["baseline_line"] = it.rule.baseline_price * qty
         items_with_color.append(d)
 
-    return tmpl.render(
+    chart_svg = ""
+    inline_images: dict[str, bytes] = {}
+    if total_history:
+        chart_svg, chart_png = render_total_history_chart(
+            total_history, report.total_baseline,
+        )
+        if chart_png is not None:
+            inline_images[CHART_CID] = chart_png
+
+    html = tmpl.render(
         run_date=report.run_date.isoformat(),
         items=items_with_color,
         total_today=report.total_today,
@@ -109,15 +349,20 @@ def render_daily_report(
         total_delta_baseline_color=_color_for(report.total_delta_baseline_abs),
         total_delta_yesterday_color=_color_for(report.total_delta_yesterday_abs),
         warnings=report.fetcher_warnings,
+        chart_svg=chart_svg,
         run_id=run_id,
         option_count=option_count,
         elapsed_ms=elapsed_ms,
     )
+    return html, inline_images
 
 
 def render_alert(
-    *, error_type: str, error_message: str,
-    timestamp: str, run_id: int | None = None,
+    *,
+    error_type: str,
+    error_message: str,
+    timestamp: str,
+    run_id: int | None = None,
 ) -> str:
     env = _make_env()
     tmpl = env.get_template("alert.html.j2")
