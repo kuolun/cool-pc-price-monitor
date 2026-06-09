@@ -66,7 +66,12 @@ def test_render_produces_nonempty_html():
     assert "AMD R7 7700 MPK" in html
     assert "6,390" in html
     assert "-100" in html
-    assert "🔻" in html
+    # Table is trimmed to 購買 / 今日 / Δ購買 — the daily-change and low
+    # columns (and their 🔻⭐ markers) now live only in the trend chart.
+    assert "Δ 購買" in html
+    assert "7d low" not in html
+    assert "30d low" not in html
+    assert "🔻" not in html and "⭐" not in html
 
 
 def test_render_shows_not_found_row():
@@ -140,8 +145,10 @@ def test_filters_handle_none_values():
         missing_item_keys=[],
         fetcher_warnings=[],
     )
+    # None yesterday/low values must not break rendering of the trimmed table.
     html, _ = render_daily_report(report, run_id=1, option_count=1500, elapsed_ms=0)
-    assert "—" in html
+    assert "CPU" in html
+    assert "1,000" in html
 
 
 def test_chart_empty_for_short_history():

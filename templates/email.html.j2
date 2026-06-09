@@ -36,9 +36,6 @@
         <th>品項</th>
         <th style="text-align: right;">購買</th>
         <th style="text-align: right;">今日</th>
-        <th style="text-align: right;">Δ 昨</th>
-        <th style="text-align: right;">7d low</th>
-        <th style="text-align: right;">30d low</th>
         <th style="text-align: right;">Δ 購買</th>
       </tr>
     </thead>
@@ -55,18 +52,9 @@
         </td>
         <td style="text-align: right; color: #888;">${{ item.baseline_line | comma }}</td>
         {% if item.not_found %}
-          <td colspan="5" style="text-align: center; color: #c00;">⚠️ 今日未找到</td>
+          <td colspan="2" style="text-align: center; color: #c00;">⚠️ 今日未找到</td>
         {% else %}
-          <td style="text-align: right;">
-            ${{ item.today_line_total | comma }}
-            {% if item.is_7d_low %}<span title="近 7 天最低">🔻</span>{% endif %}
-            {% if item.is_30d_low %}<span title="近 30 天最低">⭐</span>{% endif %}
-          </td>
-          <td style="text-align: right; color: {{ item.delta_yesterday_color }};">
-            {{ item.delta_yesterday_line | signed_comma_or_dash }}
-          </td>
-          <td style="text-align: right;">${{ item.low_7d_line | comma_or_dash }}</td>
-          <td style="text-align: right;">${{ item.low_30d_line | comma_or_dash }}</td>
+          <td style="text-align: right;">${{ item.today_line_total | comma }}</td>
           <td style="text-align: right; color: {{ item.delta_baseline_color }};">
             {{ item.delta_baseline_line | signed_comma_or_dash }}
           </td>
@@ -79,10 +67,6 @@
         <td>合計</td>
         <td style="text-align: right; color: #888;">${{ total_baseline | comma }}</td>
         <td style="text-align: right;">${{ total_today | comma }}</td>
-        <td style="text-align: right; color: {{ total_delta_yesterday_color }};">
-          {{ total_delta_yesterday_abs | signed_comma_or_dash }}
-        </td>
-        <td colspan="2"></td>
         <td style="text-align: right; color: {{ total_delta_baseline_color }};">
           {{ total_delta_baseline_abs | signed_comma }}
         </td>

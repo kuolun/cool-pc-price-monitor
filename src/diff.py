@@ -1,11 +1,14 @@
 """Build DailyReport from today's matches + history."""
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timedelta
 
 from src.config import AppConfig
 from src.models import DailyReport, ItemDiff, MatchResult
 from src.storage import Storage
+
+log = logging.getLogger("coolpc")
 
 
 def build_daily_report(
@@ -57,14 +60,17 @@ def build_daily_report(
         is_7d_low = low_7d is None or price <= low_7d
         is_30d_low = low_30d is None or price <= low_30d
 
+        # 比對機制的內部診斷（多重候選 / hint 失效退回 keyword）只寫進 log，
+        # 不放進信裡——使用者無從 action，徒增雜訊。會影響總價的 not_found
+        # 才值得進信裡的「需注意」區（見上面 not_found 分支）。
         warning: str | None = None
         if m.confidence < 1.0:
             n_candidates = int(round(1.0 / m.confidence)) if m.confidence > 0 else 0
-            warning = f"多重候選 {n_candidates} 個，confidence {m.confidence:.2f}"
-            warnings.append(f"{rule.key}: {warning}")
+            log.warning(
+                "%s: 多重候選 %d 個，confidence %.2f", rule.key, n_candidates, m.confidence
+            )
         elif m.mode == "keyword" and rule.option_value_hint:
-            warning = "option_value_hint 失效，已用 keyword fallback"
-            warnings.append(f"{rule.key}: {warning}")
+            log.warning("%s: option_value_hint 失效，已用 keyword fallback", rule.key)
 
         items.append(ItemDiff(
             rule=rule,

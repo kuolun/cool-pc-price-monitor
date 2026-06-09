@@ -30,13 +30,31 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     return p.parse_args(argv)
 
 
-def _compose_subject(run_date, total_today, delta_baseline) -> str:
-    sign = "+" if delta_baseline > 0 else ""
-    # No space between "vs" and "購買": Python's email encoder splits long
-    # mixed-script subjects into adjacent encoded-words at this whitespace,
-    # and per RFC 2047 §6.2 the LWSP between them is dropped on display.
-    # Encoding without the space keeps the rendered subject identical.
-    return f"[原價屋] {run_date} 今日 ${total_today:,}（vs購買 {sign}{delta_baseline:,}）"
+def _compose_subject(run_date, total_today, delta_baseline, delta_yesterday) -> str:
+    # 主旨用全形「｜」分段、CJK 段內不夾 ASCII 空白：Python 的 email 編碼器會把
+    # 中英混排折成相鄰 encoded-word，而 RFC 2047 §6.2 規定兩個 encoded-word 之間
+    # 的 LWSP 在顯示時要被丟掉。改用全形分隔字元就完全避開這個吃空白的雷。
+
+    # vs 昨天：每日信最該一眼看到的「今天有沒有動」，沒昨資料就標明。
+    if delta_yesterday is None:
+        day = "昨無資料"
+    elif delta_yesterday > 0:
+        day = f"昨+{delta_yesterday:,}↑"
+    elif delta_yesterday < 0:
+        day = f"昨{delta_yesterday:,}↓"  # 負號已含在數字裡
+    else:
+        day = "昨持平"
+
+    # vs 購買：東西已經買了，市價比買價高＝你買在低點、賺到。正向講「現省」，
+    # 避免「+14,501」配紅字被讀成壞消息（方向其實相反）。
+    if delta_baseline > 0:
+        base = f"現省{delta_baseline:,}"
+    elif delta_baseline < 0:
+        base = f"比買價低{-delta_baseline:,}"
+    else:
+        base = "與買價同"
+
+    return f"[原價屋] {run_date} ${total_today:,}｜{day}｜{base}"
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -91,6 +109,7 @@ def main(argv: list[str] | None = None) -> int:
             report.run_date,
             report.total_today,
             report.total_delta_baseline_abs,
+            report.total_delta_yesterday_abs,
         )
 
         print(

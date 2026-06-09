@@ -147,7 +147,10 @@ def test_total_baseline_sums_all_items():
     assert report.total_baseline == 29480
 
 
-def test_match_with_low_confidence_emits_warning():
+def test_low_confidence_logs_but_stays_out_of_email(caplog):
+    """Match-machinery diagnostics (low confidence / hint fallback) are
+    operational noise the user can't act on — they go to the log, not the
+    email. So item.warning stays None and fetcher_warnings excludes them."""
     store = Storage(":memory:")
     cpu = _rule("cpu", baseline=6490)
     cfg = AppConfig(baseline=Baseline(date="2026-02-24", notes=""), rules=[cpu])
@@ -155,8 +158,11 @@ def test_match_with_low_confidence_emits_warning():
     raw = RawProduct(option_value="x", option_text="AMD $6490", price=6490, optgroup=None)
     low_conf = MatchResult(rule=cpu, raw=raw, mode="keyword", confidence=0.5)
 
-    report = build_daily_report(cfg=cfg, matches=[low_conf], store=store,
-                                now=datetime(2026, 4, 21, 1, 0))
+    with caplog.at_level("WARNING", logger="coolpc"):
+        report = build_daily_report(cfg=cfg, matches=[low_conf], store=store,
+                                    now=datetime(2026, 4, 21, 1, 0))
+
     item = report.items[0]
-    assert item.warning is not None
-    assert "2" in item.warning or "候選" in item.warning
+    assert item.warning is None
+    assert report.fetcher_warnings == []
+    assert any("confidence" in r.message for r in caplog.records)
