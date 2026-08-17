@@ -1,6 +1,8 @@
 # Cool PC Price Monitor
 
-Daily-run tool that monitors prices on coolpc.com.tw for a fixed 8-item shopping list and emails an HTML digest tracking price trends vs purchase date / 7-day low / 30-day low. Single user, personal tool. Runs via GitHub Actions daily at 09:00 Taipei.
+Tool that monitors prices on coolpc.com.tw for a fixed 8-item shopping list and emails an HTML digest tracking price trends vs purchase date / 7-day low / 30-day low. Single user, personal tool.
+
+**Cadence: scrapes daily, emails monthly.** Prices are collected every day at 09:00 Taipei (the 7-day / 30-day lows and the trend chart need daily data points to mean anything), but the digest email only goes out on the 1st of each month. Fault-alert emails still fire on any day the scrape breaks.
 
 - Spec: `docs/superpowers/specs/2026-04-21-coolpc-price-monitor-design.md`
 - Plan: `docs/superpowers/plans/2026-04-21-coolpc-price-monitor.md`
@@ -18,7 +20,8 @@ cp .env.example .env
 
 ```bash
 uv run python -m src.main --dry-run     # no email, no DB write
-uv run python -m src.main               # real run
+uv run python -m src.main --collect-only # scrape into DB, no digest email
+uv run python -m src.main               # real run (scrape + send digest)
 uv run pytest                           # all tests
 uv run pytest tests/test_matcher.py -v  # single file
 uv run ruff check .                     # lint
@@ -28,11 +31,12 @@ uv run python scripts/probe.py          # re-probe coolpc HTML (updates fixture 
 
 ## Schedule
 
-GitHub Actions workflow `.github/workflows/daily.yml` runs at UTC 01:00 (= Taipei 09:00) daily. Manual trigger:
+GitHub Actions workflow `.github/workflows/daily.yml` runs at UTC 01:00 (= Taipei 09:00) every day. The step picks its mode from the day of month: on the 1st it sends the digest, otherwise it runs `--collect-only`. Manual trigger:
 
 ```bash
-gh workflow run "Daily price check" -f dry_run=true    # dry-run
-gh workflow run "Daily price check"                    # real
+gh workflow run "Daily price check" -f dry_run=true      # dry-run
+gh workflow run "Daily price check" -f force_email=true  # send digest today
+gh workflow run "Daily price check"                      # normal (collect-only unless 1st)
 ```
 
 ## Adding / Changing Items

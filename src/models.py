@@ -64,3 +64,6 @@ class DailyReport(BaseModel):
     total_delta_yesterday_abs: int | None
     missing_item_keys: list[str]
     fetcher_warnings: list[str]
+    # vs 上月最後一筆：信改成一個月寄一封之後，主旨該回答的是「這個月動了多少」，
+    # 不是「昨天動了多少」。給預設 None，既有測試不必全部補這個欄位。
+    total_delta_month_abs: int | None = None

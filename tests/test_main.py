@@ -94,3 +94,24 @@ def test_main_fetcher_failure_sends_alert_and_exits_nonzero(mocker, tmp_db, prod
     assert send_mock.call_count == 1
     subject = send_mock.call_args.kwargs["subject"]
     assert "故障" in subject or "alert" in subject.lower()
+
+
+def test_subject_shows_month_delta_not_yesterday():
+    """信改成月報後，主旨中段要回答「這個月動了多少」。"""
+    from datetime import date
+
+    from src.main import _compose_subject
+
+    up = _compose_subject(date(2026, 9, 1), 70760, 13751, 1200)
+    assert "月+1,200↑" in up
+    assert "現省13,751" in up
+    assert "昨" not in up
+
+    down = _compose_subject(date(2026, 9, 1), 70760, 13751, -1200)
+    assert "月-1,200↓" in down
+
+    flat = _compose_subject(date(2026, 9, 1), 70760, 13751, 0)
+    assert "月持平" in flat
+
+    unknown = _compose_subject(date(2026, 9, 1), 70760, 13751, None)
+    assert "月無資料" in unknown

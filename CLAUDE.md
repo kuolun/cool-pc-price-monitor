@@ -4,7 +4,9 @@ This file provides guidance to Claude Code when working with this repository.
 
 ## Project Overview
 
-Daily-run tool that scrapes coolpc.com.tw evaluate.php for a fixed 8-item shopping list and emails an HTML digest tracking price trends. Single user, personal tool. Runs via GitHub Actions daily cron.
+Tool that scrapes coolpc.com.tw evaluate.php for a fixed 8-item shopping list and emails an HTML digest tracking price trends. Single user, personal tool. Runs via GitHub Actions daily cron.
+
+**Scrapes daily, emails monthly** (changed 2026-08-17). The cron still fires every day because the 7-day / 30-day low flags and the trend chart are computed from daily snapshots — thin them out and `is_7d_low` degenerates to "always true" since the window would hold only today's row. Only the digest is throttled: the workflow runs `--collect-only` on every day except the 1st. Fault alerts are deliberately exempt so a broken scraper cannot hide for a month.
 
 The canonical design lives in `docs/superpowers/specs/2026-04-21-coolpc-price-monitor-design.md` — read it first, do not deviate without discussion.
 

@@ -18,8 +18,12 @@ def build_daily_report(
     items: list[ItemDiff] = []
     missing_keys: list[str] = []
     warnings: list[str] = []
+    # 只餵主旨的「vs 上月」用，不進 ItemDiff：逐項月差在信裡沒有位置放，
+    # 硬加欄位只會讓表格更擠。
+    month_ago_by_key: dict[str, int | None] = {}
 
     start_of_today = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    start_of_month = start_of_today.replace(day=1)
 
     for m in matches:
         rule = m.rule
@@ -44,6 +48,9 @@ def build_daily_report(
         assert price is not None
 
         yesterday = store.query_last_price_before(rule.key, start_of_today)
+        month_ago_by_key[rule.key] = store.query_last_price_before(
+            rule.key, start_of_month
+        )
 
         low_7d = store.query_low(rule.key, now - timedelta(days=7), now)
         low_30d = store.query_low(rule.key, now - timedelta(days=30), now)
@@ -104,6 +111,18 @@ def build_daily_report(
     else:
         total_delta_yesterday_abs = None
 
+    # 規則刻意跟上面的 vs 昨天一致：只拿「今天有抓到」的項目互比（total_today
+    # 也只加這些），其中任何一項缺上月資料就整個不比。今天少抓到一項時，總價會
+    # 掉但月差不會——這靠 missing_item_keys 在信裡的「需注意」區示警。
+    present = [it for it in items if not it.not_found]
+    if present and all(month_ago_by_key.get(it.rule.key) is not None for it in present):
+        total_month_ago = sum(
+            (month_ago_by_key[it.rule.key] or 0) * it.rule.quantity for it in present
+        )
+        total_delta_month_abs: int | None = total_today - total_month_ago
+    else:
+        total_delta_month_abs = None
+
     return DailyReport(
         run_date=now.date(),
         items=items,
@@ -111,6 +130,7 @@ def build_daily_report(
         total_baseline=total_baseline,
         total_delta_baseline_abs=total_delta_baseline_abs,
         total_delta_yesterday_abs=total_delta_yesterday_abs,
+        total_delta_month_abs=total_delta_month_abs,
         missing_item_keys=missing_keys,
         fetcher_warnings=warnings,
     )
