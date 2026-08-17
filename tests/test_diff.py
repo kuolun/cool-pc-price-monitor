@@ -166,3 +166,69 @@ def test_low_confidence_logs_but_stays_out_of_email(caplog):
     assert item.warning is None
     assert report.fetcher_warnings == []
     assert any("confidence" in r.message for r in caplog.records)
+
+
+def test_delta_month_compares_against_last_price_before_this_month():
+    """月報主旨的「月」＝今天 vs 上個月最後一筆，不是 vs 昨天。"""
+    store = Storage(":memory:")
+    _seed_history(store, "cpu", {
+        datetime(2026, 7, 20, 1, 0): 7000,   # 上月中，不該被選中
+        datetime(2026, 7, 31, 1, 0): 6800,   # 上月最後一筆 ← 應該用這個
+        datetime(2026, 8, 15, 1, 0): 6500,   # 本月，昨天
+    })
+
+    rule = _rule("cpu", baseline=6490)
+    cfg = AppConfig(baseline=Baseline(date="2026-02-24", notes=""), rules=[rule])
+    report = build_daily_report(
+        cfg=cfg, matches=[_match_for(rule, 6600)], store=store,
+        now=datetime(2026, 8, 16, 1, 0),
+    )
+
+    assert report.total_delta_month_abs == 6600 - 6800   # -200，vs 上月底
+    assert report.total_delta_yesterday_abs == 6600 - 6500  # +100，vs 昨天
+
+
+def test_delta_month_scales_by_quantity():
+    store = Storage(":memory:")
+    _seed_history(store, "ram", {datetime(2026, 7, 30, 1, 0): 3000})
+
+    rule = _rule("ram", qty=2, baseline=3000)
+    cfg = AppConfig(baseline=Baseline(date="2026-02-24", notes=""), rules=[rule])
+    report = build_daily_report(
+        cfg=cfg, matches=[_match_for(rule, 3200)], store=store,
+        now=datetime(2026, 8, 16, 1, 0),
+    )
+    assert report.total_delta_month_abs == (3200 - 3000) * 2
+
+
+def test_delta_month_is_none_when_no_history_before_this_month():
+    """第一次跑、或上個月沒資料時不要硬比，寧可標「月無資料」。"""
+    store = Storage(":memory:")
+    _seed_history(store, "cpu", {datetime(2026, 8, 15, 1, 0): 6500})
+
+    rule = _rule("cpu", baseline=6490)
+    cfg = AppConfig(baseline=Baseline(date="2026-02-24", notes=""), rules=[rule])
+    report = build_daily_report(
+        cfg=cfg, matches=[_match_for(rule, 6600)], store=store,
+        now=datetime(2026, 8, 16, 1, 0),
+    )
+    assert report.total_delta_month_abs is None
+
+
+def test_delta_month_ignores_items_missing_today_same_as_yesterday():
+    """今天少抓到一項時，月差只比有抓到的項目——與 vs 昨天同一套規則。
+
+    總價會因為少一項而掉，月差卻不會跟著掉；信裡靠 missing_item_keys 的
+    「需注意」區示警。這裡釘住這個行為，免得日後兩邊算法悄悄分岔。
+    """
+    store = Storage(":memory:")
+    _seed_history(store, "cpu", {datetime(2026, 7, 31, 1, 0): 6800})
+
+    cpu, ram = _rule("cpu", baseline=6490), _rule("ram", baseline=3000)
+    cfg = AppConfig(baseline=Baseline(date="2026-02-24", notes=""), rules=[cpu, ram])
+    report = build_daily_report(
+        cfg=cfg, matches=[_match_for(cpu, 6600), _not_found(ram)], store=store,
+        now=datetime(2026, 8, 16, 1, 0),
+    )
+    assert report.total_delta_month_abs == 6600 - 6800
+    assert report.missing_item_keys == ["ram"]

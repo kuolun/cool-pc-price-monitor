@@ -25,25 +25,31 @@ from src.storage import Storage
 def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Coolpc price monitor daily run")
     p.add_argument("--dry-run", action="store_true", help="不發 email、不寫 DB（只印到 stdout）")
+    p.add_argument(
+        "--collect-only",
+        action="store_true",
+        help="只抓價寫進 DB，不寄月報信（故障通知信仍會寄）",
+    )
     p.add_argument("--config", default="config/products.yaml", help="YAML 設定檔路徑")
     p.add_argument("--db", default="data/prices.db", help="SQLite 資料庫路徑")
     return p.parse_args(argv)
 
 
-def _compose_subject(run_date, total_today, delta_baseline, delta_yesterday) -> str:
+def _compose_subject(run_date, total_today, delta_baseline, delta_month) -> str:
     # 主旨用全形「｜」分段、CJK 段內不夾 ASCII 空白：Python 的 email 編碼器會把
     # 中英混排折成相鄰 encoded-word，而 RFC 2047 §6.2 規定兩個 encoded-word 之間
     # 的 LWSP 在顯示時要被丟掉。改用全形分隔字元就完全避開這個吃空白的雷。
 
-    # vs 昨天：每日信最該一眼看到的「今天有沒有動」，沒昨資料就標明。
-    if delta_yesterday is None:
-        day = "昨無資料"
-    elif delta_yesterday > 0:
-        day = f"昨+{delta_yesterday:,}↑"
-    elif delta_yesterday < 0:
-        day = f"昨{delta_yesterday:,}↓"  # 負號已含在數字裡
+    # vs 上月：信改成一個月一封後，這格該回答的是「上次收信到現在動了多少」。
+    # 價還是每天抓，所以這是真的月變化，不是兩個抽樣點硬湊出來的差。
+    if delta_month is None:
+        day = "月無資料"
+    elif delta_month > 0:
+        day = f"月+{delta_month:,}↑"
+    elif delta_month < 0:
+        day = f"月{delta_month:,}↓"  # 負號已含在數字裡
     else:
-        day = "昨持平"
+        day = "月持平"
 
     # vs 購買：東西已經買了，市價比買價高＝你買在低點、賺到。正向講「現省」，
     # 避免「+14,501」配紅字被讀成壞消息（方向其實相反）。
@@ -88,6 +94,15 @@ def main(argv: list[str] | None = None) -> int:
 
         store.record_snapshots(run_id, matches)
 
+        # 平常日：價已經進 DB 了，7/30 日低點和折線圖靠的就是這些每日點，
+        # 但不寄信。真正的月報留到每月 1 號那一輪。
+        if args.collect_only:
+            status = "partial" if any(m.mode == "not_found" for m in matches) else "ok"
+            store.record_run_end(run_id, datetime.now(), status, option_count)
+            log.info("collect-only: 已寫入快照，不寄信")
+            print("collect-only: snapshot stored, no email")
+            return 0
+
         report = build_daily_report(cfg=cfg, matches=matches, store=store, now=now)
         elapsed_ms = int((time.monotonic() - t0) * 1000)
 
@@ -109,7 +124,7 @@ def main(argv: list[str] | None = None) -> int:
             report.run_date,
             report.total_today,
             report.total_delta_baseline_abs,
-            report.total_delta_yesterday_abs,
+            report.total_delta_month_abs,
         )
 
         print(

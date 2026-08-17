@@ -9,6 +9,10 @@ on:
         description: "Dry run (不發 email)"
         type: boolean
         default: false
+      force_email:
+        description: "強制寄月報信（不管今天是不是 1 號）"
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -37,11 +41,18 @@ jobs:
           GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
           TZ: Asia/Taipei
           DRY_RUN: ${{ inputs.dry_run }}
+          FORCE_EMAIL: ${{ inputs.force_email }}
         run: |
+          # 價每天抓（7/30 日低點與折線圖要靠每日資料點才準），
+          # 但信只在每月 1 號寄一封。手動觸發可用 force_email 蓋過。
           if [ "$DRY_RUN" = "true" ]; then
             uv run python -m src.main --dry-run
-          else
+          elif [ "$FORCE_EMAIL" = "true" ] || [ "$(date +%d)" = "01" ]; then
+            echo "月報日：寄信"
             uv run python -m src.main
+          else
+            echo "非月報日：只抓價寫 DB"
+            uv run python -m src.main --collect-only
           fi
 
       - name: Commit DB update
