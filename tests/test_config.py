@@ -44,12 +44,12 @@ def test_smtp_config_from_env_with_explicit_to_email(monkeypatch):
     assert smtp.to_email == "t@g.com"
 
 
-def test_smtp_config_to_email_defaults_to_gmail_user(monkeypatch):
+def test_smtp_config_to_email_defaults_to_fixed_recipient(monkeypatch):
     monkeypatch.setenv("GMAIL_USER", "u@g.com")
     monkeypatch.setenv("GMAIL_APP_PASSWORD", "pass")
     monkeypatch.delenv("TO_EMAIL", raising=False)
     smtp = SMTPConfig.from_env()
-    assert smtp.to_email == "u@g.com"
+    assert smtp.to_email == "kuolun@gmail.com"
 
 
 def test_smtp_config_missing_env_raises(monkeypatch):

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import base64
 import io
 from pathlib import Path
 
@@ -96,7 +95,6 @@ def _dashed_line(
     fill: str, width: int = 1,
     dash: int = 6, gap: int = 4,
 ) -> None:
-    total = max(1, x1 - x0)
     step = dash + gap
     x = x0
     while x < x1:
